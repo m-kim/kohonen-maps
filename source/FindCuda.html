@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <meta content="text/html; charset=ISO-8859-1"
+ http-equiv="content-type">
+  <title>FindCuda.cmake</title>
+</head>
+<body>
+<h1><br>
+</h1>
+<h1>FindCUDA.cmake</h1>
+<span style="font-weight: bold;"></span>For more information about
+CMake and Cuda:<br>
+<ul>
+  <li><a href="http://www.cmake.org/">http://www.cmake.org</a></li>
+  <li><a href="http://developer.nvidia.com/object/cuda.html">http://developer.nvidia.com/object/cuda.html<br>
+    </a></li>
+</ul>
+<br>
+<span style="font-weight: bold;">SVN revision r813 contains
+major changes to FindCUDA.cmake. Please see details below. To use the
+old script, check out a prior revision from the svn server.<br>
+<br>
+NOTE: The source code is hosted at a new svn server: </span><a
+ href="https://gforge.sci.utah.edu/gf/project/findcuda/scmsvn/?action=browse&path=%2Ftrunk%2F">https://gforge.sci.utah.edu/svn/findcuda/trunk</a><span
+ style="font-weight: bold;"><br>
+</span><br>
+This web page contains information about an unofficial version
+of the
+FindCuda.cmake script I developed for my own CUDA programs.<span
+ style="font-style: italic;"></span> Many individuals have adopted the
+script and suggested improvements, and tested the script on various
+platforms and configurations. I appreciate all of the feedback and bug
+fixes I have received since the initial release.<br>
+<p>This webpage is updated infrequently- the svn log contains details
+about bug fixes and updates.</p>
+<p>Please send any comments or questions to my email. If you use the
+NVIDIA forums, I might not see you question for some time.</p>
+<p><a href="http://www.sci.utah.edu/%7Eabe/">Abe Stephens</a> <br>
+Scientific Computing and Imaging Institute, University of Utah.<br>
+</p>
+<p>James Bigler<br>
+NVIDIA Research.<br>
+</p>
+Features:<br>
+<ul>
+  <li>Works on all CUDA platforms, tested with CUDA 2.1 beta. Will
+generate visual studio project files.<br>
+  </li>
+  <li>Parses an nvcc generated dependency file into CMake format.
+Targets will be regenerated when dependencies change.</li>
+  <li>Displays kernel register usage during compilation.</li>
+  <li>Support for compilation to executable, shared libary, or PTX.<br>
+  </li>
+</ul>
+<h2>Source Code:</h2>
+We released a major revision to the script in December 2008 at
+approximately the same time as the CUDA 2.1 beta. There are many
+differences in the new version of the script and it has been tested
+extensively on Linux, Mac, and WinXP/Vista. <br>
+<br>
+<span style="font-weight: bold;">It is necessary to make several
+changes to a project's CMakeLists.txt files in order to use the new
+version.</span><br>
+<br>
+List of partial changes:<br>
+<ul>
+  <li>The capitalization of the script's filename is changed to
+FindCUDA.cmake.</li>
+  <li>The script may be included using FIND_PACKAGE (see example code).<br>
+  </li>
+  <li>Switched to standard CMake package variable names: (e.g. <span
+ style="font-weight: bold;">CUDA_INCLUDE_DIRS</span> instead of
+CUDA_INCLUDE,<span style="font-weight: bold;"> CUDA_LIBRARIES</span>
+instead of CUDA_TARGET_LINK).</li>
+  <li>Selection of Device or Release mode via boolean option <span
+ style="font-weight: bold;">CUDA_BUILD_EMULATION</span> instead
+of a text string.</li>
+  <li>Paths added to INCLUDE_DIRECTORIES are passed to nvcc.</li>
+  <li>Added option to host compilation mode boolean option.</li>
+  <li>Added CUDA_COMPILE_PTX macro for compilation to .ptx.</li>
+  <li>Added a macro generated target to clean all generated
+dependencies.</li>
+  <li>Locates the cuFFT and cuBLAS libraries as well (both in Device
+and Emulation mode).<br>
+  </li>
+</ul>
+Major bug fixes:<br>
+<ul>
+  <li>Fixed problem in Emulation mode which caused targets to
+continuously be rebuilt.</li>
+  <li>Fixed problems associated with incomplete compilation in visual
+studio.</li>
+  <li>Updated default paths for toolkit and SDK on several platforms.<br>
+  </li>
+</ul>
+<br>
+Notes:<br>
+<ul>
+  <li>Set the cmake cache variable <span style="font-weight: bold;">CUDA_BUILD_CUBIN</span>
+to enable or disable generation and parsing of .cubin files for kernels
+in Device mode. When enabled the number of registers, memory usage,
+etc. will be printed to the console for each kernel. This information
+can be entered in the <a
+ href="http://developer.nvidia.com/object/cuda.html#downloads">Cuda
+occupancy calculator</a>. </li>
+  <li>The script will output the actual command lines used in verbose
+mode (e.g. make VERBOSE=1).<br>
+  </li>
+  <li>The example code is intended to demonstrate cmake script usage
+only, the .cu files don't do anything illustrative.</li>
+</ul>
+<br>
+The code is available in an svn repository:
+https://gforge.sci.utah.edu/svn/CMake-cuda<br>
+<br>
+Either checkout the example project:<br>
+<br>
+<table border="1" cellpadding="2" cellspacing="2" width="100%">
+  <tbody>
+    <tr>
+      <td>
+      <pre><br>svn co https://gforge.sci.utah.edu/svn/findcuda/trunk CMake-cuda</pre>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<br>
+<br>
+<h2>Usage:</h2>
+The script will search for your cuda toolkit and SDK installation using
+several standard paths and the
+environment variables which are created by the installer. <br>
+<br>
+The following example includes the script and shows how to add code in
+an executable. The CUDA_ADD_* commands have the same
+semantics as the standard ADD_* commands.<br>
+<br>
+<table style="text-align: left; width: 546px; height: 117px;" border="1"
+ cellpadding="2" cellspacing="2">
+  <tbody>
+    <tr>
+      <td style="vertical-align: top;"><span
+ style="font-family: monospace;">SET(CMAKE_MODULE_PATH
+"${CMAKE_SOURCE_DIR}/CMake/cuda" ${CMAKE_MODULE_PATH})<br>
+FIND_PACKAGE(CUDA)<br>
+      <br>
+CUDA_ADD_EXECUTABLE(test<br>
+&nbsp; test_bin.cu<br>
+&nbsp; main.cc<br>
+&nbsp; )</span><br>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<br>
+See additional usage in the example project.<br>
+<h2>License</h2>
+<span style="font-family: monospace;">&nbsp; For more information,
+please see: http://software.sci.utah.edu<br>
+<br>
+&nbsp; The MIT License<br>
+<br>
+&nbsp; Copyright (c) 2007-2008<br>
+&nbsp; Scientific Computing and Imaging Institute, University of Utah<br>
+<br>
+&nbsp; License for the specific language governing rights and
+limitations under<br>
+&nbsp; Permission is hereby granted, free of charge, to any person
+obtaining a<br>
+&nbsp; copy of this software and associated documentation files (the
+"Software"),<br>
+&nbsp; to deal in the Software without restriction, including without
+limitation<br>
+&nbsp; the rights to use, copy, modify, merge, publish, distribute,
+sublicense,<br>
+&nbsp; and/or sell copies of the Software, and to permit persons to
+whom the<br>
+&nbsp; Software is furnished to do so, subject to the following
+conditions:<br>
+<br>
+&nbsp; The above copyright notice and this permission notice shall be
+included<br>
+&nbsp; in all copies or substantial portions of the Software.<br>
+<br>
+&nbsp; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS<br>
+&nbsp; OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY,<br>
+&nbsp; FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+EVENT SHALL<br>
+&nbsp; THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER<br>
+&nbsp; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING<br>
+&nbsp; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER<br>
+&nbsp; DEALINGS IN THE SOFTWARE.</span><br>
+<br>
+<br>
+</body>
+</html>
