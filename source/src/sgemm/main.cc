@@ -1,0 +1,65 @@
+
+#include <stdio.h>
+
+#include <cblas.h>
+#include <cstdlib>
+#include <cstring>
+#include <time.h>
+
+//void cblas_sgemm(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA,
+//                 const enum CBLAS_TRANSPOSE TransB, const int M, const int N,
+//                 const int K, const float alpha, const float *A,
+//                 const int lda, const float *B, const int ldb,
+//                 const float beta, float *C, const int ldc);
+
+
+void setMatrix(float *mat, float in, int m)
+{
+	for (int i=0; i<m; i++){
+		mat[i] = in;
+
+	}
+}
+int main( int argc, char **argv )
+{
+	int m = 4096;
+	time_t start, end;
+
+	double dif;
+	time(&start);
+
+	float *A = (float*)malloc(sizeof(float) * m * m);
+	float *B = (float*)malloc(sizeof(float) * m * m);
+	float *C = (float*)malloc(sizeof(float) * m * m);
+
+	float alpha = 1.0;
+	float beta = 0.0;
+
+
+	setMatrix(A, 1.0, m * m);
+	setMatrix(B, 1.0, m * m);
+	setMatrix(C, 1.0, m * m);
+
+	//CblasNoTrans = 'n'
+	//CblasTrans = 't'
+	cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m, m, m, alpha,
+			A, m,
+			B, m,
+			beta,
+			C, m);
+
+
+	time(&end);
+	dif = difftime(end,start);
+	printf("%f secs", dif);
+
+	//	for (int i=0; i<m; i++){
+//		for (int j=0; j<m; j++){
+//			printf("%f ", C[i * m + j]);
+//
+//		}
+//		printf("\n");
+//	}
+    return 0;
+};
+
