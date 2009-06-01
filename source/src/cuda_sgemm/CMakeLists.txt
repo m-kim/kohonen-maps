@@ -18,12 +18,14 @@ INCLUDE_DIRECTORIES(
 # There are four ways to compile source files with NVCC. 
 
 CUDA_ADD_EXECUTABLE(cuda_som
+	main.cc
   cuda.cu
   )
 
 TARGET_LINK_LIBRARIES(cuda_som
   ${CUDA_CUBLAS_LIBRARIES}
   ${CUDA_CUT_LIBRARY}
+  lapack
   )
 
 # Or compile the cuda code into a shared library.

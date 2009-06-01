@@ -22,11 +22,18 @@ void setMatrix(float *mat, float in, int m)
 }
 int main( int argc, char **argv )
 {
-	int m = 4096;
-	time_t start, end;
+	int m = 0;
+	if (argc > 1){
+                m = atoi(argv[1]);
+        }
+        else{
+                m = 4096;
+        }
+
+	clock_t start;
 
 	double dif;
-	time(&start);
+
 
 	float *A = (float*)malloc(sizeof(float) * m * m);
 	float *B = (float*)malloc(sizeof(float) * m * m);
@@ -35,7 +42,7 @@ int main( int argc, char **argv )
 	float alpha = 1.0;
 	float beta = 0.0;
 
-
+	start = clock();
 	setMatrix(A, 1.0, m * m);
 	setMatrix(B, 1.0, m * m);
 	setMatrix(C, 1.0, m * m);
@@ -49,9 +56,8 @@ int main( int argc, char **argv )
 			C, m);
 
 
-	time(&end);
-	dif = difftime(end,start);
-	printf("%f secs", dif);
+	dif = difftime(clock(), start)/(double)CLOCKS_PER_SEC;
+	printf("%f secs\n", dif);
 
 	//	for (int i=0; i<m; i++){
 //		for (int j=0; j<m; j++){
