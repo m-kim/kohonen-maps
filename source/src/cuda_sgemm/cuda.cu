@@ -7,7 +7,7 @@
 
 void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alpha,float beta, int M, int N, int K)
 {
-	cublasSgemm('T','N', M,N,K,
+	cublasSgemm('N','N', M,N,K,
 			alpha,
 			A, lda,
 			B, ldb,
