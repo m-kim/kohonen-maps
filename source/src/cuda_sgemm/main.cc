@@ -38,7 +38,7 @@ float dot(MATRIX one, float *two)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
-		sum += one.data[i] + two[i];
+		sum += one.data[i] * two[i];
 	}
 	return sum;
 }
@@ -239,25 +239,20 @@ int main( int argc, char **argv )
 
 	//pca(x, pc1, pc2);
 
+	float tmp[] ={-0.36220333, -0.35487528, -0.19582513,  0.01291018,  0.25750163,  0.15277131
+			 ,-0.37524103  ,0.16958821,  0.14361155, -0.2686145,   0.33782259,  0.00555586
+			  ,0.29207888,  0.27095362,  0.15164405, -0.2376786};
+	memcpy(pc1.data, tmp, sizeof(float) * 16);
+
+	float tmp2[] = {0.00260173,  0.02293971, -0.47482202,  0.09716536,  0.00760736,  0.30567733
+	  ,0.04289583, -0.09414034,  0.18733382, -0.01131097, -0.39201071,  0.52470409
+	  ,0.29333093, -0.26513936, -0.19181659, -0.05501617};
+	memcpy(pc2.data, tmp2, sizeof(float) * 16);
+
 	//mean0 == dm
 	//dm should be shape = (16,)
-//	float tmp[] ={-0.36220333, -0.35487528, -0.19582513,  0.01291018,  0.25750163,  0.15277131
-//			 ,-0.37524103  ,0.16958821,  0.14361155, -0.2686145,   0.33782259,  0.00555586
-//			  ,0.29207888,  0.27095362,  0.15164405, -0.2376786};
-//	memcpy(pc1.data, tmp, sizeof(float) * 16);
-//
-//	float tmp2[] = {0.00260173,  0.02293971, -0.47482202,  0.09716536,  0.00760736,  0.30567733
-//	  ,0.04289583, -0.09414034,  0.18733382, -0.01131097, -0.39201071,  0.52470409
-//	  ,0.29333093, -0.26513936, -0.19181659, -0.05501617};
-//
-//	memcpy(pc2.data, tmp2, sizeof(float) * 16);
-
-
-//	float dm[] = {0.07371005,  0.06930278,  0.06095141,  0.06333451,  0.05051784,  0.05129793
-//			  ,0.06050101,  0.05691528,  0.06498929,  0.0721819,   0.0584693,   0.05939876
-//			  ,0.06277908,  0.06235693,  0.0723389,   0.06095503};
-	//float *dm = mean(x);
-
+	//dm is correct compared to python code...
+	//it needed a reverse index
 	float *dm = (float*)malloc(sizeof(float) * x.row);
 
 	for(int i=0; i<x.row;i++){
@@ -270,8 +265,6 @@ int main( int argc, char **argv )
 
 	//-----------------------------------------------------------------------------------------------------
 
-	//dm is correct compared to python code...
-	//it needed a reverse index
 
 	MATRIX pd1;
 	pd1.data = (float*)malloc(sizeof(float) * 20000);
@@ -295,7 +288,7 @@ int main( int argc, char **argv )
 		pd1.data[i] = dot(pc1, data_dm.data + i * 16);
 		pd2.data[i] = dot(pc2, data_dm.data + i * 16);
 	}
-
+	printf("pd %f\n", pd1.data[0]);
 	//scale map
 	float std1 = stdDev(pd1);
 	float std2 = stdDev(pd2);
