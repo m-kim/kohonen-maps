@@ -145,8 +145,6 @@ static void normalize(MATRIX mat)
 			mat.data[i * mat.row + j] = fabs(mat.data[i * mat.row + j]);
 			sum += mat.data[i * mat.row + j];
 		}
-		if (i < 1)
-			printf("normalize %f \n", sum);
 		for (int j=0;j<mat.row; j++){
 			mat.data[i * mat.row + j] /= sum;
 		}
@@ -263,9 +261,6 @@ int main( int argc, char **argv )
 		dm[i] = dm[i] / x.col;
 	}
 
-	//-----------------------------------------------------------------------------------------------------
-
-
 	MATRIX pd1;
 	pd1.data = (float*)malloc(sizeof(float) * 20000);
 	pd1.row = 20000;
@@ -288,8 +283,11 @@ int main( int argc, char **argv )
 		pd1.data[i] = dot(pc1, data_dm.data + i * 16);
 		pd2.data[i] = dot(pc2, data_dm.data + i * 16);
 	}
-	printf("pd %f\n", pd1.data[0]);
-	//scale map
+
+
+/*****************************************************************************************
+ * scale map
+ */
 	float std1 = stdDev(pd1);
 	float std2 = stdDev(pd2);
 
@@ -301,11 +299,16 @@ int main( int argc, char **argv )
 	bin1 = 2 * expansion * std1 / N;
 	bin2 = 2 * expansion * std2 / M;
 
-//#if DEBUG_PRINT
 	printf("Std dev: %f %f\n", std1,std2);
-	printf("scale %f %f %d %d", bin1, bin2, M, N);
-//#endif
-	//init_ww
+	printf("scale %f %f %d %d\n", bin1, bin2, M, N);
+
+
+
+
+/*************************************************************************************
+ * init_ww and
+ * musical_chairs
+ */
 	float *b1 = (float*)malloc(sizeof(float) * 16);
 	float *b2 = (float*)malloc(sizeof(float) * 16);
 	for (int i=0; i<pc1.row; i++){
@@ -316,28 +319,37 @@ int main( int argc, char **argv )
 
 	MATRIX ww;
 	ww.data = (float*)malloc(sizeof(float) * M * N * 16);
-	ww.row = 16;
-	ww.col = N * M;
+	ww.row = N * M;
+	ww.col = 16;
 
-	for (int i=0; i<M; i++){
-		for (int j=0; j<N; j++){
+	MATRIX ww2;
+	ww2.data = (float*)malloc(sizeof(float) * N *M);
+	ww2.row = N;
+	ww2.col = M;
+
+	//remember, mean0 = dm
+	for (int i=0; i<N; i++){
+		for (int j=0; j<M; j++){
+			ww2.data[i * M + j] = 0;
 			for (int k=0; k<16; k++){
-				ww.data[i * N + j] = dm[k] + b1[k] * (i - N/2) + b2[k]*(j-M/2);
+				ww.data[(i * M * 16 + j * 16) + k] = dm[k] + b1[k] * (i - N/2) + b2[k]*(j-M/2);
+				//musical chairs
+				ww2.data[i * M + j] += ww.data[(i * M * 16 + j * 16) + k] * ww.data[(i * M * 16 + j * 16) + k];
 			}
 		}
 	}
 
-	//musical_chairs
-	for (int i=0; i<16; i++){
-		for (int j=0; j<M*N; j++){
-			ww.data[i * M*N + j] = ww.data[i*M*N +j] * ww.data[i*M*N +j];
-		}
-	}
+/*************************************************************************************
+ * musical_chairs (cont)
+ */
+
+	//-----------------------------------------------------------------------------------------------------
+
 	//chunk
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
-	//runCudasGemm(x,ww);
+	runCudasGemm(ww,x);
 
-	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww;
+	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww,ww2;
 };

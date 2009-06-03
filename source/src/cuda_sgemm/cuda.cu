@@ -5,9 +5,9 @@
 
 
 
-void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alpha,float beta,int K, int M, int N)
+void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alpha,float beta, int M, int N, int K)
 {
-	cublasSgemm('N','N', K,M,N,
+	cublasSgemm('T','N', M,N,K,
 			alpha,
 			A, lda,
 			B, ldb,
@@ -41,12 +41,13 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
 {
     cublasStatus stat;
     float* device_A, *device_B, *device_C;
-//    float* a = 0;
-//    a = (float *)malloc (M * N * sizeof (*a));
-//    if (!a) {
-//        printf ("host memory allocation failed");
-//        return EXIT_FAILURE;
-//    }
+
+    float* a = 0;
+    a = (float *)malloc (ww.row * data.col * sizeof (*a));
+    if (!a) {
+        printf ("host memory allocation failed");
+        return EXIT_FAILURE;
+    }
 
     unsigned int timer;
     cutCreateTimer(&timer);
@@ -57,22 +58,19 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
     cutStartTimer(timer);
     cublasInit();
 
-    //this isn't any faster...surprising...
-//    cudaMalloc((void**)&device_A, sizeof(float) * M * N * 3);
-//    device_B = device_A + M * N;
-//    device_C = device_B + M * N;
-    printf("setup matrix A\n");
-    cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * data.row*data.col));
-    cutilSafeCall(cudaMemcpy(device_A, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
-    //setupMatrix(device_A, a, 1, M, N);
-    printf("setup matrix B\n");
-    cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * ww.row * ww.col));
-    cutilSafeCall(cudaMemcpy(device_B, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
-    //setupMatrix(device_B, a, 1, M, N);
-    printf("setup matrix C\n");
-    cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.col));
+
+    printf("setup matrix A %d %d\n", ww.row, ww.col);
+//    cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
+//    cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
+    setupMatrix(device_A, a, 1, ww.row, ww.col);
+    printf("setup matrix B %d %d\n", data.row, data.col);
+//    cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * data.row*data.col));
+//    cutilSafeCall(cudaMemcpy(device_B, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
+    setupMatrix(device_B, a, 1, data.row, data.col);
+    printf("setup matrix C %d %d\n", ww.row, data.col);
+    //cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
     //cudaMemcpy(device_A, ww, sizeof(float) * N * K, cudaMemcpyHostToDevice);
-    //setupMatrix(device_C, a, 0, M, N);
+    setupMatrix(device_C, a, 0, ww.row, data.col);
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -80,7 +78,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    modify (device_A, data.col, device_B, ww.col, device_C, ww.col, 1.0, 0.0,data.row, data.col, ww.col);
+    modify (device_A, ww.row, device_B, data.row, device_C, ww.row, 1.0, 0.0,ww.row, data.col, ww.col);
     cudaThreadSynchronize();
 
     cutStopTimer(timer);
@@ -91,8 +89,8 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    //stat = cublasGetMatrix (data.row, ww.col, sizeof(float), device_C, data.row, data.data, data.row);
-    cutilSafeCall(cudaMemcpy(data.data, device_C, sizeof(float) * data.row * ww.row, cudaMemcpyDeviceToHost));
+    //stat = cublasGetMatrix (ww.row, data.col, sizeof(float), device_C, ww.row, a, ww.row);
+    cutilSafeCall(cudaMemcpy(a, device_C, sizeof(float) * ww.row * data.col, cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -100,12 +98,12 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
 
     printf("Transfer back time %f\n\n", time);
 
-    if (stat != CUBLAS_STATUS_SUCCESS) {
-        printf ("data upload failed");
-        cublasFree (device_C);
-        cublasShutdown();
-        return EXIT_FAILURE;
-    }
+//    if (stat != CUBLAS_STATUS_SUCCESS) {
+//        printf ("data download failed");
+//        cublasFree (device_C);
+//        cublasShutdown();
+//        return EXIT_FAILURE;
+//    }
 
     printf("Total Time: %f\n\n", total_time);
     cublasFree (device_A);
@@ -114,12 +112,13 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
 
     cublasShutdown();
 
-    for (int j = 0; j < data.row; j+=512) {
-        for (int i = 0; i < ww.col; i+=512) {
-            //printf ("%7.0f ", a[IDX2C(i,j,M)]);
+	for (int i = 0; i < ww.row; i+=1) {
+		for (int j = 0; j < data.col; j+=1) {
+            printf ("%3.0f ", a[i * data.col + j]);
         }
-        //printf ("\n");
+		printf("\n");
     }
+	delete a;
     return EXIT_SUCCESS;
 }
 
