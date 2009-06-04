@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 
-extern "C" int runCudasGemm(MATRIX ww, MATRIX data);
+extern "C" int runCudasGemm(MATRIX ww,MATRIX ww2, MATRIX data);
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
         float* A, const int* lda, float* S, float* U, const int* ldu,
         float* VT, const int* ldvt, float* work,const int* lwork, const
@@ -351,7 +351,7 @@ int main( int argc, char **argv )
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
-	runCudasGemm(ww,x);
+	runCudasGemm(ww,ww2,x);
 
 	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww,ww2;
 };

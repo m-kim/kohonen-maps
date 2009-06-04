@@ -6,20 +6,26 @@
 
 //unoptimized this is 10 times slower than calling cublaSgemm
 //but I can't figure out what the deal is with sGemm...
-__global__ void sgemm(const float *A, int lda, const float *B, int ldb, float *C, int ldc, int M, int N, int K)
+__global__ void sgemm(const float *A, int lda, const float *B, int ldb, float *C, int ldc,
+						float alpha, float beta,
+						int M, int N, int K)
 {
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
 	int j = threadIdx.y + blockDim.y * blockIdx.y;
+	float sum = 0;
 	for (int k=0; k<K; k++){
-		C[i * N + j] += A[i * K + k] * B[k * N + j];
+		sum += A[i * K + k] * B[k * N + j];
+
 	}
+
+	C[i * N + j] = alpha * sum + beta * C[i * N + j];
 }
 
 void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alpha,float beta, int M, int N, int K)
 {
 	dim3 grids(16,16);
 	dim3 blocks(56, 1250);
-	sgemm<<<blocks,grids>>>(A, lda, B, ldb, C, ldc, M,N,K);
+	sgemm<<<blocks,grids>>>(A, lda, B, ldb, C, ldc,alpha,beta, M,N,K);
 
 // can't get culbasSgemm to follow the data layout I used.  My bad...I guess.
 //	cublasSgemm('N','N', M,N,K,
@@ -51,7 +57,7 @@ void setupMatrix(float *&device_matrix, float *host_mem, float set_num, int M, i
     }
 }
 
-extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
+extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 {
     float* device_A, *device_B, *device_C;
 
@@ -118,9 +124,14 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
     //setupMatrix(device_B, a, 1, data.row, data.col);
 
     printf("setup matrix C %d %d\n", ww.row, data.col);
-//    cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
-//    cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
-    setupMatrix(device_C, a, 0, ww.row, data.col);
+    cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
+    for (int i=0; i<ww.row; i++){
+    	for (int j=0; j<data.col; j++){
+    		a[j * ww.row + i] = ww2.data[j];
+    	}
+    }
+    cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
+//    setupMatrix(device_C, a, 0, ww.row, data.col);
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -129,7 +140,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    modify (device_A, ww.row, device_B, data.row, device_C, ww.row, 1.0, 0.0, ww.row, data.col, ww.col);
+    modify (device_A, ww.row, device_B, data.row, device_C, ww.row, 2.0, -1.0, ww.row, data.col, ww.col);
     cudaThreadSynchronize();
 
     cutStopTimer(timer);
