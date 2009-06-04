@@ -34,7 +34,6 @@ void setupMatrix(float *&device_matrix, float *host_mem, float set_num, int M, i
     if (stat != CUBLAS_STATUS_SUCCESS) {
         printf ("data download failed\n");
     }
-
 }
 
 extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
@@ -61,65 +60,71 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX data)
     	for (int j=0; j<data.col; j++){
     		a[i * data.col + j] = 0;
     		for (int k=0; k<16; k++){
-    			a[i * data.col + j] += ww.data[i * ww.col + k] * data.data[j * data.row + k];
+    			a[i * data.col + j] += ww.data[i * ww.col + k] * data.data[k * data.col + j];
     		}
     	}
 	}
-//    printf("setup matrix A %d %d\n", ww.row, ww.col);
-//    cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
-//    cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
-//    //setupMatrix(device_A, a, 1, ww.row, ww.col);
+	for (int i=0; i<16; i++){
+    	printf("%f\n", a[i]);
+    }
+	printf("\n");
+
+    printf("setup matrix A %d %d\n", ww.row, ww.col);
+    cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
+    cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
+    //setupMatrix(device_A, a, 1, ww.row, ww.col);
+
+    printf("setup matrix B %d %d\n", data.row, data.col);
+    cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * data.row*data.col));
+    cutilSafeCall(cudaMemcpy(device_B, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
+    //setupMatrix(device_B, a, 1, data.row, data.col);
+
+    printf("setup matrix C %d %d\n", ww.row, data.col);
+//    cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
+//    cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
+    setupMatrix(device_C, a, 0, ww.row, data.col);
+
+    cutStopTimer(timer);
+    time = cutGetTimerValue(timer);
+    total_time += time;
+    printf("Initialization time %f\n\n", time);
+
+    cutResetTimer(timer);
+    cutStartTimer(timer);
+    modify (device_A, ww.row, device_B, data.row, device_C, ww.row, 1.0, 0.0,ww.row, data.col, ww.col);
+    cudaThreadSynchronize();
+
+    cutStopTimer(timer);
+    time = cutGetTimerValue(timer);
+    total_time += time;
+
+    printf("Run time %f\n\n", time);
+
+    cutResetTimer(timer);
+    cutStartTimer(timer);
+    cutilSafeCall(cudaMemcpy(a, device_C, sizeof(float) * ww.row * data.col, cudaMemcpyDeviceToHost));
+
+    cutStopTimer(timer);
+    time = cutGetTimerValue(timer);
+    total_time += time;
+
+    printf("Transfer back time %f\n\n", time);
+
+    printf("Total Time: %f\n\n", total_time);
+    cublasFree (device_A);
+    cublasFree (device_B);
+    cublasFree (device_C);
+
+    cublasShutdown();
+
+	float max=0;
+//	for (int i = 0; i < ww.row; i+=1) {
 //
-//    printf("setup matrix B %d %d\n", data.row, data.col);
-//    cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * data.row*data.col));
-//    cutilSafeCall(cudaMemcpy(device_B, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
-//    //setupMatrix(device_B, a, 1, data.row, data.col);
-//
-//    printf("setup matrix C %d %d\n", ww.row, data.col);
-////    cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
-////    cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
-//    setupMatrix(device_C, a, 0, ww.row, data.col);
-//
-//    cutStopTimer(timer);
-//    time = cutGetTimerValue(timer);
-//    total_time += time;
-//    printf("Initialization time %f\n\n", time);
-//
-//    cutResetTimer(timer);
-//    cutStartTimer(timer);
-//    modify (device_A, ww.row, device_B, data.row, device_C, ww.row, 1.0, 0.0,ww.row, data.col, ww.col);
-//    cudaThreadSynchronize();
-//
-//    cutStopTimer(timer);
-//    time = cutGetTimerValue(timer);
-//    total_time += time;
-//
-//    printf("Run time %f\n\n", time);
-//
-//    cutResetTimer(timer);
-//    cutStartTimer(timer);
-//    cutilSafeCall(cudaMemcpy(a, device_C, sizeof(float) * ww.row * data.col, cudaMemcpyDeviceToHost));
-//
-//    cutStopTimer(timer);
-//    time = cutGetTimerValue(timer);
-//    total_time += time;
-//
-//    printf("Transfer back time %f\n\n", time);
-//
-//    printf("Total Time: %f\n\n", total_time);
-//    cublasFree (device_A);
-//    cublasFree (device_B);
-//    cublasFree (device_C);
-//
-//    cublasShutdown();
-//
-//
-////	for (int i = 0; i < ww.row; i+=1) {
-////		for (int j = 0; j < data.col; j+=1) {
-////            printf ("%2.4f ", a[i * data.col + j]);
-////        }
-////		printf("\n");
-////    }
+//		for (int j = 0; j < data.col; j+=1) {
+//            printf ("%2.4f ", a[i * data.col + j]);
+//        }
+//		printf("\n");
+//    }
 
     for (int i=0; i<16; i++){
     	printf("%f\n", a[i]);

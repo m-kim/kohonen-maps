@@ -34,11 +34,11 @@ float stdDev(const MATRIX &mat)
 	return sqrt(sum / mat.row);
 }
 
-float dot(MATRIX one, float *two)
+float dot(MATRIX one, MATRIX two, int col)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
-		sum += one.data[i] * two[i];
+		sum += one.data[i] * two.data[i * two.col + col ];
 	}
 	return sum;
 }
@@ -210,7 +210,7 @@ int main( int argc, char **argv )
 //	make_data(1000, 20, 16, 3.0, pc1, pc2, x);
 	std::ifstream file;
 	char filename[100];
-	sprintf(filename, "%s/%s",SRC_PATH,"tmp");
+	sprintf(filename, "%s/%s",SRC_PATH,"data");
 	printf("%s\n",filename);
 	file.open(filename, std::ifstream::in);
 	std::string str;
@@ -223,7 +223,7 @@ int main( int argc, char **argv )
 		char *tok = strtok((char*)str.c_str(), " ");
 		while (tok != NULL){
 			//16 rows by 20000 cols in the file
-			x.data[col * x.row + row] = atof(tok);
+			x.data[row * x.col + col] = atof(tok);
 			tok = strtok(NULL, " ");
 			col++;
 		}
@@ -232,7 +232,8 @@ int main( int argc, char **argv )
 	}
 	file.close();
 
-	normalize(x);
+	//I think this normalize is wrong...
+	//normalize(x);
 
 
 
@@ -259,7 +260,7 @@ int main( int argc, char **argv )
 	for(int i=0; i<x.row;i++){
 		dm[i] = 0.0;
 		for(int j=0; j<x.col; j++){
-			dm[i] += x.data[j * x.row + i];
+			dm[i] += x.data[i * x.col + j];
 		}
 		dm[i] = dm[i] / x.col;
 	}
@@ -281,12 +282,11 @@ int main( int argc, char **argv )
 
 	for (int i=0; i<data_dm.col; i++){
 		for (int j=0; j<data_dm.row; j++){
-			data_dm.data[i * data_dm.row + j] = x.data[i * x.row + j] - dm[j];
+			data_dm.data[j * data_dm.col + i] = x.data[j * x.col + i] - dm[j];
 		}
-		pd1.data[i] = dot(pc1, data_dm.data + i * 16);
-		pd2.data[i] = dot(pc2, data_dm.data + i * 16);
+		pd1.data[i] = dot(pc1, data_dm,i);
+		pd2.data[i] = dot(pc2, data_dm,i);
 	}
-
 
 /*****************************************************************************************
  * scale map
@@ -318,7 +318,6 @@ int main( int argc, char **argv )
 		b1[i] = pc1.data[i] * bin1;
 		b2[i] = pc2.data[i] * bin2;
 	}
-
 
 	MATRIX ww;
 	ww.data = (float*)malloc(sizeof(float) * M * N * 16);
