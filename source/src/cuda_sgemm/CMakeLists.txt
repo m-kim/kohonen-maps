@@ -13,9 +13,7 @@ INCLUDE_DIRECTORIES(
   ${CUDA_INCLUDE_DIRS}
   ${CUDA_CUT_INCLUDE_DIR}
   )
-
-##############################################################################
-# There are four ways to compile source files with NVCC. 
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/shared.h.in ${CMAKE_CURRENT_SOURCE_DIR}/shared.h)
 
 CUDA_ADD_EXECUTABLE(cuda_som
 	main.cc

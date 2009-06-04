@@ -3,7 +3,7 @@
 #include <clapack.h>
 #include <cstdio>
 #include <cstring>
-#include <string>
+
 #include <cmath>
 #include <iostream>
 #include <fstream>
@@ -209,7 +209,10 @@ int main( int argc, char **argv )
 
 //	make_data(1000, 20, 16, 3.0, pc1, pc2, x);
 	std::ifstream file;
-	file.open("tmp", std::ifstream::in);
+	char filename[100];
+	sprintf(filename, "%s/%s",SRC_PATH,"tmp");
+	printf("%s\n",filename);
+	file.open(filename, std::ifstream::in);
 	std::string str;
 	memset(x.data, 0, sizeof(float) * 16 * 20000);
 	int row = 0;
