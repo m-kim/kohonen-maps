@@ -6,6 +6,7 @@
 
 //unoptimized this is 10 times slower than calling cublaSgemm
 //but I can't figure out what the deal is with sGemm...
+//row-major order...
 __global__ void sgemm(const float *A, int lda, const float *B, int ldb, float *C, int ldc,
 						float alpha, float beta,
 						int M, int N, int K)
@@ -83,38 +84,22 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 //    	for (int j=0; j<data.col; j++){
 //    		a[i * data.col + j] = 0;
 //    		for (int k=0; k<16; k++){
-//    			a[i * data.col + j] += ww.data[i * ww.col + k] * data.data[k * data.col + j];
+//    			a[i * data.col + j] += 2 * ww.data[i * ww.col + k] * data.data[k * data.col + j];
 //    		}
 //    	}
 //	}
-//	for (int i=0; i<16; i++){
-//    	printf("%f ", a[i]);
-//    }
-//	printf("\n");
-
-//    for (int i=0; i<ww.row; i++){
-//		for (int j=0; j<data.col; j++){
-//			a[i * data.col + j] = 0;
-//			for (int k=0; k<16; k++){
-//				a[i * data.col + j] += ww.data[i * ww.col + k] * data.data[k * data.col + j];
-//			}
+//	for (int i=0; i<5; i++){
+//		for (int j=0; j<5; j++){
+//    		printf("%f ", a[i * data.col + j] - ww2.data[j]);
 //		}
-//	}
-//	for (int i=0; i<16; i++){
-//		printf("%f ", a[i]);
-//	}
-//	printf("\n");
-	float sum = 0;
-	for (int i=0; i<16; i++){
-		sum += ww.data[896*i] * data.data[ i];
-//		printf("%f ", ww.data[i] * data.data[i]);
-	}
-	printf("%f \n",sum);
+//		printf("\n");
+//    }
+//
 //	for (int i=0; i<16; i++){
 //		printf("%f ", data.data[20000 * i]);
 //	}
 //	printf("\n");
-
+//
     printf("setup matrix A %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
@@ -128,7 +113,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
     for (int i=0; i<ww.row; i++){
     	for (int j=0; j<data.col; j++){
-    		a[j * ww.row + i] = ww2.data[j];
+    		a[i * data.col + j] = ww2.data[i];
     	}
     }
     cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
@@ -164,6 +149,13 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cudaFree (device_B);
     cudaFree (device_C);
 
+    for (int i=0; i<5; i++){
+    	for (int j=0; j<5; j++){
+    		printf("%f ", a[i * data.col + j]);
+    	}
+    	printf("\n");
+    }
+
     int new_ww_count[896];
     for (int i=0; i< 896; i++){
     	new_ww_count[i] = 0;
@@ -192,8 +184,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 		printf("\n");
 	}
 
-    for (int i=890; i<900; i++)
-    	printf("%f ", a[i]);
 
 	delete a;
     return EXIT_SUCCESS;

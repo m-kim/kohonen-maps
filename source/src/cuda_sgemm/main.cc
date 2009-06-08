@@ -208,6 +208,8 @@ int main( int argc, char **argv )
 
 
 //	make_data(1000, 20, 16, 3.0, pc1, pc2, x);
+	//normalize(x);
+
 	std::ifstream file;
 	char filename[100];
 	sprintf(filename, "%s/%s",SRC_PATH,"data");
@@ -232,8 +234,6 @@ int main( int argc, char **argv )
 	}
 	file.close();
 
-	//I think this normalize is wrong...
-	//normalize(x);
 
 
 
@@ -255,6 +255,7 @@ int main( int argc, char **argv )
 	//dm should be shape = (16,)
 	//dm is correct compared to python code...
 	//it needed a reverse index
+
 	float *dm = (float*)malloc(sizeof(float) * x.row);
 
 	for(int i=0; i<x.row;i++){
@@ -329,15 +330,46 @@ int main( int argc, char **argv )
 	ww2.row = N;
 	ww2.col = M;
 
+	//this doesn't work...
 	//remember, mean0 = dm
-	for (int i=0; i<N; i++){
-		for (int j=0; j<M; j++){
-			ww2.data[i * M + j] = 0;
-			for (int k=0; k<16; k++){
-				ww.data[(i * M * 16 + j * 16) + k] = dm[k] + b1[k] * (i - N/2) + b2[k]*(j-M/2);
-				//musical chairs
-				ww2.data[i * M + j] += ww.data[(i * M * 16 + j * 16) + k] * ww.data[(i * M * 16 + j * 16) + k];
-			}
+//	for (int i=0; i<N; i++){
+//		for (int j=0; j<M; j++){
+//			ww2.data[i * M + j] = 0;
+//			for (int k=0; k<16; k++){
+//				ww.data[IDX(i,j, M) + k] = dm[k] + b1[k] * (i - N/2) + b2[k]*(j-M/2);
+//				//musical chairs
+//				ww2.data[i * M + j] += pow(ww.data[IDX(i,j,M) + k], 2);
+//			}
+//		}
+//	}
+
+	memset(filename,0,100);
+	sprintf(filename, "%s/%s",SRC_PATH,"ww");
+	printf("%s\n",filename);
+	std::ifstream ww_file;
+	ww_file.open(filename, std::ifstream::in);
+	row = 0;
+	col = 0;
+	while (ww_file.good()){
+		getline(ww_file, str);
+		char *tok = strtok((char*)str.c_str(), " ");
+		while (tok != NULL){
+
+			//16 rows by 20000 cols in the file
+			ww.data[col * ww.col + row] = atof(tok);
+			tok = strtok(NULL, " ");
+			col++;
+		}
+		col = 0;
+		row++;
+	}
+	ww_file.close();
+
+
+	for (int i=0; i<896; i++){
+		for (int j=0; j<16; j++){
+			//this shouldn't be backwards...*sigh*
+			ww2.data[i] += pow(ww.data[i * 16 + j],2);
 		}
 	}
 
