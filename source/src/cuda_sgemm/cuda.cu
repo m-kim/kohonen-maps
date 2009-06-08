@@ -27,7 +27,8 @@ void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alph
 	dim3 blocks(56, 1250);
 	sgemm<<<blocks,grids>>>(A, lda, B, ldb, C, ldc,alpha,beta, M,N,K);
 
-// can't get culbasSgemm to follow the data layout I used.  My bad...I guess.
+// can't get culbasSgemm to follow the data layout I used.  My bad...I guess
+//  cublasInit();
 //	cublasSgemm('N','N', M,N,K,
 //			alpha,
 //			A, lda,
@@ -37,6 +38,8 @@ void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alph
 //	if (stat != CUBLAS_STATUS_SUCCESS){
 //		printf("Error # %d: sgemm failed\n", stat);
 //	}
+//  cublasShutdown();
+
 }
 
 void setupMatrix(float *&device_matrix, float *host_mem, float set_num, int M, int N)
@@ -75,7 +78,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     total_time = 0;
     cutResetTimer(timer);
     cutStartTimer(timer);
-    cublasInit();
 
 //    for (int i=0; i<ww.row; i++){
 //    	for (int j=0; j<data.col; j++){
@@ -116,7 +118,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     printf("setup matrix A %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
-    //setupMatrix(device_A, a, 1, ww.row, ww.col);
 
     printf("setup matrix B %d %d\n", data.row, data.col);
     cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * data.row*data.col));
@@ -131,7 +132,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     	}
     }
     cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
-//    setupMatrix(device_C, a, 0, ww.row, data.col);
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -160,24 +160,39 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
-    cublasFree (device_A);
-    cublasFree (device_B);
-    cublasFree (device_C);
+    cudaFree (device_A);
+    cudaFree (device_B);
+    cudaFree (device_C);
 
-    cublasShutdown();
+    int new_ww_count[896];
+    for (int i=0; i< 896; i++){
+    	new_ww_count[i] = 0;
+    }
+	int argmax = 0;
+	float max_val = 0;
+	for (int i=0; i<20000; i++){
+		argmax = 0;
+		max_val = -100000;
+		for (int j=0; j<896; j++){
+			if (max_val < a[j * 20000 + i]){
+				argmax = j;
+				max_val = a[j * 20000 + i];
+			}
+		}
 
-//	float max=0;
-//	for (int i = 0; i < ww.row; i+=1) {
-//		max = 0;
-//		for (int j = 0; j < data.col; j+=1) {
-//			if (max < a[i * data.col + j])
-//				max = a[i * data.col + j];
-//            //printf ("%2.4f ", a[i * data.col + j]);
-//        }
-//		printf("%f\n",max);
-//    }
+		new_ww_count[argmax]++;
+	}
 
-    for (int i=0; i<16; i++)
+	int counter = 0;
+	for (int i=0; i<56; i++){
+		for (int j=0; j<16; j++){
+			printf("%d ", new_ww_count[i * 16 + j]);
+			counter += new_ww_count[i * 16 + j];
+		}
+		printf("\n");
+	}
+
+    for (int i=890; i<900; i++)
     	printf("%f ", a[i]);
 
 	delete a;

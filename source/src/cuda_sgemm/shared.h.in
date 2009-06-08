@@ -1,5 +1,6 @@
 #define IDX2C(i,j,ld) (((j)*(ld))+(i))
 #define DEBUG_PRINT 0
+#define IDX(i,j,ld) (((i)*(ld)) + (j))
 
 //yes I know this isn't strict C, but I'm not that fussy...
 #include <string>
