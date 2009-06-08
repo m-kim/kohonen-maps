@@ -3,6 +3,26 @@
 #include <stdio.h>
 #include <cutil_inline.h>
 
+//there's probably a much nicer way to do this...
+//but lets try this for now
+__global__ void coalesce(const float *ww, const float *data, float *ww2,
+						int *ret,
+						float alpha, float beta,
+						int M, int N, int K)
+{
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+	float sum = 0;
+	for (int j=0; j<N; j++){
+		sum = 0;
+		for (int k=0; k<K; k++){
+			sum += ww[i * K + k] * data[k * N + j];
+		}
+		sum = alpha * sum + beta * ww2[i * N + j];
+		ww2[i * N + j] = sum;
+	}
+
+}
+
 
 //unoptimized this is 10 times slower than calling cublaSgemm
 //but I can't figure out what the deal is with sGemm...
@@ -22,26 +42,6 @@ __global__ void sgemm(const float *A, int lda, const float *B, int ldb, float *C
 	C[i * N + j] = alpha * sum + beta * C[i * N + j];
 }
 
-void modify (float *A, int lda, float *B, int ldb, float *C, int ldc, float alpha,float beta, int M, int N, int K)
-{
-	dim3 grids(16,16);
-	dim3 blocks(56, 1250);
-	sgemm<<<blocks,grids>>>(A, lda, B, ldb, C, ldc,alpha,beta, M,N,K);
-
-// can't get culbasSgemm to follow the data layout I used.  My bad...I guess
-//  cublasInit();
-//	cublasSgemm('N','N', M,N,K,
-//			alpha,
-//			A, lda,
-//			B, ldb,
-//			beta, C, ldc);
-//	cublasStatus stat = cublasGetError();
-//	if (stat != CUBLAS_STATUS_SUCCESS){
-//		printf("Error # %d: sgemm failed\n", stat);
-//	}
-//  cublasShutdown();
-
-}
 
 void setupMatrix(float *&device_matrix, float *host_mem, float set_num, int M, int N)
 {
@@ -64,13 +64,15 @@ void setupMatrix(float *&device_matrix, float *host_mem, float set_num, int M, i
 extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 {
     float* device_A, *device_B, *device_C;
-
     float* a = 0;
     a = (float *)malloc (ww.row * data.col * sizeof (*a));
     if (!a) {
         printf ("host memory allocation failed");
         return EXIT_FAILURE;
     }
+
+    int *device_ret = 0;
+	int *ret = (int*)malloc(sizeof(int) * ww.row);
 
     unsigned int timer;
     cutCreateTimer(&timer);
@@ -80,44 +82,32 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
-//    for (int i=0; i<ww.row; i++){
-//    	for (int j=0; j<data.col; j++){
-//    		a[i * data.col + j] = 0;
-//    		for (int k=0; k<16; k++){
-//    			a[i * data.col + j] += 2 * ww.data[i * ww.col + k] * data.data[k * data.col + j];
-//    		}
-//    	}
-//	}
-//	for (int i=0; i<5; i++){
-//		for (int j=0; j<5; j++){
-//    		printf("%f ", a[i * data.col + j] - ww2.data[j]);
-//		}
-//		printf("\n");
-//    }
-//
-//	for (int i=0; i<16; i++){
-//		printf("%f ", data.data[20000 * i]);
-//	}
-//	printf("\n");
-//
-    printf("setup matrix A %d %d\n", ww.row, ww.col);
+    printf("setup matrix ww %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
 
-    printf("setup matrix B %d %d\n", data.row, data.col);
+    printf("setup matrix data %d %d\n", data.row, data.col);
     cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * data.row*data.col));
     cutilSafeCall(cudaMemcpy(device_B, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
     //setupMatrix(device_B, a, 1, data.row, data.col);
 
-    printf("setup matrix C %d %d\n", ww.row, data.col);
+    printf("setup matrix ww2 %d %d\n", ww.row, data.col);
     cutilSafeCall(cudaMalloc((void**)&device_C, sizeof(float) * data.col * ww.row));
     for (int i=0; i<ww.row; i++){
     	for (int j=0; j<data.col; j++){
     		a[i * data.col + j] = ww2.data[i];
     	}
     }
+    for (int i=0; i<5; i++){
+    	for (int j=0; j<5; j++){
+    		printf("%f ", a[i * data.col +j ]);
+    	}
+    	printf("\n");
+    }
     cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
 
+    cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(int) * ww.row));
+    cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(int) * ww.row));
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -125,7 +115,9 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    modify (device_A, ww.row, device_B, data.row, device_C, ww.row, 2.0, -1.0, ww.row, data.col, ww.col);
+
+    //14 * 64 = 896.  Aha!
+    coalesce<<<14,64>>>(device_A, device_B, device_C, device_ret, 2.0, -1.0, ww.row,data.col, data.row);
     cudaThreadSynchronize();
 
     cutStopTimer(timer);
@@ -148,45 +140,41 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cudaFree (device_A);
     cudaFree (device_B);
     cudaFree (device_C);
-
-    for (int i=0; i<5; i++){
-    	for (int j=0; j<5; j++){
-    		printf("%f ", a[i * data.col + j]);
-    	}
-    	printf("\n");
-    }
+	cudaFree(device_ret);
 
     int new_ww_count[896];
-    for (int i=0; i< 896; i++){
-    	new_ww_count[i] = 0;
-    }
+	for (int i=0; i< 896; i++){
+		new_ww_count[i] = 0;
+	}
 	int argmax = 0;
 	float max_val = 0;
 	for (int i=0; i<20000; i++){
-		argmax = 0;
-		max_val = -100000;
-		for (int j=0; j<896; j++){
-			if (max_val < a[j * 20000 + i]){
-				argmax = j;
-				max_val = a[j * 20000 + i];
+			argmax = 0;
+			max_val = -100000;
+			for (int j=0; j<896; j++){
+					if (max_val < a[j * 20000 + i]){
+							argmax = j;
+							max_val = a[j * 20000 + i];
+					}
 			}
-		}
 
-		new_ww_count[argmax]++;
+			new_ww_count[argmax]++;
 	}
 
 	int counter = 0;
 	for (int i=0; i<56; i++){
-		for (int j=0; j<16; j++){
-			printf("%d ", new_ww_count[i * 16 + j]);
-			counter += new_ww_count[i * 16 + j];
-		}
-		printf("\n");
+		 for (int j=0; j<16; j++){
+				printf("%d ", new_ww_count[i * 16 + j]);
+				counter += new_ww_count[i * 16 + j];
+		 }
+		 printf("\n");
 	}
+	printf("%d\n",counter);
 
 
-	delete a;
+	delete a, ret;
     return EXIT_SUCCESS;
 }
+
 
 
