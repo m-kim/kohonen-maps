@@ -12,15 +12,24 @@ __global__ void coalesce(const float *ww, const float *data, float *ww2,
 {
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
 	float sum = 0;
-	for (int j=0; j<N; j++){
-		sum = 0;
-		for (int k=0; k<K; k++){
-			sum += ww[i * K + k] * data[k * N + j];
-		}
-		sum = alpha * sum + beta * ww2[i * N + j];
-		ww2[i * N + j] = sum;
-	}
+	float max_val = -10000;
+	int argmax = 0;
+	if (i < 20000){
+		for (int j=0; j<M; j++){
+			sum = 0;
+			for (int k=0; k<K; k++){
+				sum += ww[j * K + k] * data[k * N + i];
+			}
+			sum = alpha * sum + beta * ww2[j * N + i];
+			//ww2[j * N + i] = sum;
+			if (max_val < sum){
+					argmax = j;
+					max_val = sum;
+			}
 
+		}
+		ret[argmax]++;
+	}
 }
 
 
@@ -98,13 +107,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     		a[i * data.col + j] = ww2.data[i];
     	}
     }
-    for (int i=0; i<5; i++){
-    	for (int j=0; j<5; j++){
-    		printf("%f ", a[i * data.col +j ]);
-    	}
-    	printf("\n");
-    }
-    cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice);
+    cutilSafeCall(cudaMemcpy(device_C, a, sizeof(float) * ww.row * data.col, cudaMemcpyHostToDevice));
 
     cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(int) * ww.row));
@@ -116,8 +119,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
-    //14 * 64 = 896.  Aha!
-    coalesce<<<14,64>>>(device_A, device_B, device_C, device_ret, 2.0, -1.0, ww.row,data.col, data.row);
+    coalesce<<<80,256>>>(device_A, device_B, device_C, device_ret, 2.0, -1.0, ww.row,data.col, data.row);
     cudaThreadSynchronize();
 
     cutStopTimer(timer);
@@ -128,7 +130,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    cutilSafeCall(cudaMemcpy(a, device_C, sizeof(float) * ww.row * data.col, cudaMemcpyDeviceToHost));
+    cutilSafeCall(cudaMemcpy(ret, device_ret, sizeof(int) * ww.row , cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -141,31 +143,37 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cudaFree (device_B);
     cudaFree (device_C);
 	cudaFree(device_ret);
+    for (int i=0; i<5; i++){
+    	for (int j=0; j<5; j++){
+    		printf("%f ", a[i * data.col +j ]);
+    	}
+    	printf("\n");
+    }
 
-    int new_ww_count[896];
-	for (int i=0; i< 896; i++){
-		new_ww_count[i] = 0;
-	}
-	int argmax = 0;
-	float max_val = 0;
-	for (int i=0; i<20000; i++){
-			argmax = 0;
-			max_val = -100000;
-			for (int j=0; j<896; j++){
-					if (max_val < a[j * 20000 + i]){
-							argmax = j;
-							max_val = a[j * 20000 + i];
-					}
-			}
-
-			new_ww_count[argmax]++;
-	}
+//    int new_ww_count[896];
+//	for (int i=0; i< 896; i++){
+//		new_ww_count[i] = 0;
+//	}
+//	int argmax = 0;
+//	float max_val = 0;
+//	for (int i=0; i<20000; i++){
+//			argmax = 0;
+//			max_val = -100000;
+//			for (int j=0; j<896; j++){
+//					if (max_val < a[j * 20000 + i]){
+//							argmax = j;
+//							max_val = a[j * 20000 + i];
+//					}
+//			}
+//
+//			new_ww_count[argmax]++;
+//	}
 
 	int counter = 0;
 	for (int i=0; i<56; i++){
 		 for (int j=0; j<16; j++){
-				printf("%d ", new_ww_count[i * 16 + j]);
-				counter += new_ww_count[i * 16 + j];
+				printf("%d ", ret[i * 16 + j]);
+				counter += ret[i * 16 + j];
 		 }
 		 printf("\n");
 	}
