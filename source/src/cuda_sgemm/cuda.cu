@@ -5,9 +5,8 @@
 
 //there's probably a much nicer way to do this...
 //but lets try this for now
-__global__ void coalesce(const float *ww, const float *data, const float *ww2,
-						unsigned int *ret,
-						unsigned int *indices,
+__global__ void coalesce(const float *ww, const float *data, float *ww2,
+						int *ret,
 						float alpha, float beta,
 						int M, int N, int K)
 {
@@ -28,11 +27,46 @@ __global__ void coalesce(const float *ww, const float *data, const float *ww2,
 					max_val = sum;
 			}
 		}
-		//Quadro FX 5600 is not compute 1.1 compatible...*sigh*
-		//this might not matter because atomics are only block level
 		ret[argmax]++;
-		indices[i] = argmax;
 	}
+}
+
+
+//unoptimized this is 10 times slower than calling cublaSgemm
+//but I can't figure out what the deal is with sGemm...
+//row-major order...
+__global__ void sgemm(const float *A, int lda, const float *B, int ldb, float *C, int ldc,
+						float alpha, float beta,
+						int M, int N, int K)
+{
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+	int j = threadIdx.y + blockDim.y * blockIdx.y;
+	float sum = 0;
+	for (int k=0; k<K; k++){
+		sum += A[i * K + k] * B[k * N + j];
+
+	}
+
+	C[i * N + j] = alpha * sum + beta * C[i * N + j];
+}
+
+
+void setupMatrix(float *&device_matrix, float *host_mem, float set_num, int M, int N)
+{
+    cublasStatus stat;
+    stat = cublasAlloc (M*N, sizeof(*host_mem), (void**)&device_matrix);
+    if (stat != CUBLAS_STATUS_SUCCESS) {
+        printf ("device memory allocation failed\n");
+    }
+    for (int j = 0; j < N; j++) {
+        for (int i = 0; i < M; i++) {
+        	host_mem[IDX2C(i,j,M)] = set_num;//j * M + i + 1;
+        }
+    }
+    stat = cublasSetMatrix (M, N, sizeof(*host_mem), host_mem, M, device_matrix, M);
+    if (stat != CUBLAS_STATUS_SUCCESS) {
+        printf ("data download failed\n");
+    }
 }
 
 extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
@@ -45,10 +79,8 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
         return EXIT_FAILURE;
     }
 
-    unsigned int *device_ret = 0;
-    unsigned int *ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
-
-    unsigned int *device_indices = 0;
+    int *device_ret = 0;
+	int *ret = (int*)malloc(sizeof(int) * ww.row);
 
     unsigned int timer;
     cutCreateTimer(&timer);
@@ -58,37 +90,21 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
-    cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(unsigned int) * ww.row));
-    cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(unsigned int) * ww.row));
-
-    cutilSafeCall(cudaMalloc((void**)&device_indices, sizeof(unsigned int) * data.col));
-    cutilSafeCall(cudaMemset(device_indices, 0, sizeof(unsigned int) * data.col));
     printf("setup matrix ww %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
-//	for (int i=0; i<ww.row; i++){
-//		for (int j=0; j<ww.col; j++){
-//			cutilSafeCall(cudaMemcpy(
-//					device_A + (j * ww.row + i),
-//					ww.data + (i * ww.col + j),
-//					sizeof(float), cudaMemcpyHostToDevice));
-//		}
-//	}
+
     printf("setup matrix data %d %d\n", data.row, data.col);
     cutilSafeCall(cudaMalloc((void**)&device_B, sizeof(float) * data.row*data.col));
-    //cutilSafeCall(cudaMemcpy(device_B, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
-    for (int i=0; i<data.row; i++){
-    	for (int j=0; j<data.col; j++){
-    		cutilSafeCall(cudaMemcpy(
-    				device_B  + (j * data.row + i),
-    				data.data + (i * data.col + j), sizeof(float), cudaMemcpyHostToDevice));
-    	}
-    }
+    cutilSafeCall(cudaMemcpy(device_B, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
+    //setupMatrix(device_B, a, 1, data.row, data.col);
 
     printf("setup matrix ww2 %d %d\n", ww.row, data.col);
-    cutilSafeCall(cudaMalloc((void**)&device_ww2, sizeof(float) * ww.row));
-    cutilSafeCall(cudaMemcpy(device_ww2, ww2.data, sizeof(float) * ww.row, cudaMemcpyHostToDevice));
+    cutilSafeCall(cudaMalloc((void**)&device_ww2, sizeof(float) * ww2.row * ww2.col));
+    cutilSafeCall(cudaMemcpy(device_ww2, ww2.data, sizeof(float) * ww2.row * ww2.col, cudaMemcpyHostToDevice));
 
+    cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(int) * ww.row));
+    cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(int) * ww.row));
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -97,17 +113,9 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
-//    coalesce<<<80,256>>>(device_A, device_B, device_ww2, device_ret, device_indices, 2.0, -1.0, ww.row,data.col, data.row);
-    for (int i=0; i<896; i++){
-    	cublasSgemv('T', data.row, data.col, 2, device_B, data.row,
-    			device_A + 16 * i,
-    			1,
-    			0,
-    			device_ww2,
-    			1);
-    }
+    coalesce<<<80,256>>>(device_A, device_B, device_ww2, device_ret, 2.0, -1.0, ww.row,data.col, data.row);
+    cudaThreadSynchronize();
 
-    printf("Coalesce: %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -116,7 +124,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * data.row , cudaMemcpyDeviceToHost));
+    cutilSafeCall(cudaMemcpy(ret, device_ret, sizeof(int) * ww.row , cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -129,22 +137,16 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cudaFree (device_B);
     cudaFree (device_ww2);
 	cudaFree(device_ret);
-	cudaFree(device_indices);
 
-
-	for (int i=0; i<16; i++){
-		printf("%f ", a[i]);
+	int counter = 0;
+	for (int i=0; i<56; i++){
+		 for (int j=0; j<16; j++){
+				printf("%d ", ret[i * 16 + j]);
+				counter += ret[i * 16 + j];
+		 }
+		 printf("\n");
 	}
-	printf("\n");
-//	int counter = 0;
-//	for (int i=0; i<56; i++){
-//		 for (int j=0; j<16; j++){
-//				printf("%d ", ret[i * 16 + j]);
-//				counter += ret[i * 16 + j];
-//		 }
-//		 printf("\n");
-//	}
-//	printf("%d\n",counter);
+	printf("%d\n",counter);
 
 
 	delete a, ret;
