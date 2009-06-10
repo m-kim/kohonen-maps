@@ -356,6 +356,7 @@ int main( int argc, char **argv )
 		while (tok != NULL){
 
 			//16 rows by 20000 cols in the file
+			//row access
 			ww.data[col * ww.col + row] = atof(tok);
 			tok = strtok(NULL, " ");
 			col++;
