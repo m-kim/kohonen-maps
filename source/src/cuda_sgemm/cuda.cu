@@ -37,38 +37,29 @@ __global__ void coalesce(const float *ww, const float *data, const float *ww2,
 
 __global__ void reduce(uint *ret, float *ww2)
 {
-//	float max_val = -10000;
-//	int argmax = 0;
-//	for (int i=0; i<896; i++){
-//		if (max_val < ww2[i]){
-//			max_val = ww2[i];
-//			argmax = i;
-//		}
-//	}
-//	ret[argmax]++;
+
 
 	int size = 1024;
 	//using shared memory here will limit me to 8KB...
 	//initialize with hard coded numbers because compile error on variable initialization
 	__shared__ uint mem[1024];
-	__shared__ uint s_ww2[1024];
+	__shared__ float s_ww2[1024];
 
 	int blocksize = 32;
 	int coalesce_num = size/blocksize;
 	mem[threadIdx.x] = threadIdx.x;
 
 	//32 threads running...so multiply by 32 = 1024
-	//this is not a coalesced memory access...
 	for (int i=0; i<32; i++){
 		mem[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
-		s_ww2[threadIdx.x + i * blocksize] = ww2[threadIdx.x + blocksize * i];
+		s_ww2[threadIdx.x + i * blocksize] = ww2[threadIdx.x + i * blocksize];
 	}
 
 
 	// 256->32
 	for (int j=1; j < coalesce_num; j++){
 		if (threadIdx.x + blocksize * j < 896){
-			mem[threadIdx.x] = (ww2[mem[threadIdx.x]] > ww2[mem[j * blocksize + threadIdx.x]])?
+			mem[threadIdx.x] = (s_ww2[mem[threadIdx.x]] > s_ww2[mem[j * blocksize + threadIdx.x]])?
 														mem[threadIdx.x]:mem[j * blocksize+threadIdx.x];
 		}
 	}
@@ -80,7 +71,7 @@ __global__ void reduce(uint *ret, float *ww2)
 		__syncthreads();
 
 		if (threadIdx.x < blocksize){
-			mem[threadIdx.x] = ww2[  mem[blocksize +threadIdx.x]] < ww2[mem[threadIdx.x]]? mem[threadIdx.x]:(mem[blocksize+threadIdx.x]);
+			mem[threadIdx.x] = s_ww2[  mem[blocksize +threadIdx.x]] < s_ww2[mem[threadIdx.x]]? mem[threadIdx.x]:(mem[blocksize+threadIdx.x]);
 		}
 	}
 	ret[ mem[0]]++;
@@ -112,8 +103,9 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(unsigned int) * ww.row));
 
-    cutilSafeCall(cudaMalloc((void**)&device_indices, sizeof(unsigned int) * data.col));
-    cutilSafeCall(cudaMemset(device_indices, 0, sizeof(unsigned int) * data.col));
+//    cutilSafeCall(cudaMalloc((void**)&device_indices, sizeof(unsigned int) * data.col));
+//    cutilSafeCall(cudaMemset(device_indices, 0, sizeof(unsigned int) * data.col));
+
     printf("setup matrix ww %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_A, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
@@ -188,9 +180,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     time = cutGetTimerValue(timer);
     total_time += time;
 
-    for (int i=0; i<16; i++)
-    	printf("%f ", a[i+864]);
-    printf("\n");
     printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
