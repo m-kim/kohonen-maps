@@ -7,13 +7,17 @@
 
 #define SRC_PATH "${PROJECT_SOURCE_DIR}"
 
-
 typedef struct{
 	float *data;
 	int row;
 	int col;
-} MATRIX;
+} MATRIXf;
 
+typedef struct{
+	unsigned int *data;
+	int row;
+	int col;
+} MATRIXu;
 
 //float operator[](MATRIX mat, unsigned int index)
 //{

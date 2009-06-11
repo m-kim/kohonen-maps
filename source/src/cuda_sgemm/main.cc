@@ -15,8 +15,9 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-
-extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data, unsigned int *device_ret);
+extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, unsigned int *device_pbo);
+extern "C" int runCudasGemm(unsigned int *device_ret);
+extern "C" void cleanup();
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
         float* A, const int* lda, float* S, float* U, const int* ldu,
         float* VT, const int* ldvt, float* work,const int* lwork, const
@@ -31,7 +32,7 @@ GLuint pbo        = 0;          // OpenGL pixel buffer object
 GLuint displayTex = 0;
 unsigned int width = 512, height = 512;
 
-float stdDev(const MATRIX &mat)
+float stdDev(const MATRIXf &mat)
 {
 	float mean_x = 0;
 	for (int i=0; i<mat.row; i++){
@@ -45,7 +46,7 @@ float stdDev(const MATRIX &mat)
 	return sqrt(sum / mat.row);
 }
 
-float dot(MATRIX one, MATRIX two, int col)
+float dot(MATRIXf one, MATRIXf two, int col)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
@@ -54,7 +55,7 @@ float dot(MATRIX one, MATRIX two, int col)
 	return sum;
 }
 
-float * mean(const MATRIX dd)
+float * mean(const MATRIXf dd)
 {
 	//get the mean value for each row...
 	float *ret = (float*)malloc(sizeof(float) * dd.row);
@@ -68,7 +69,7 @@ float * mean(const MATRIX dd)
 	}
 	return ret;
 }
-void cov(const MATRIX dd, float *covariance)
+void cov(const MATRIXf dd, float *covariance)
 {
 	float *mean_val = mean(dd);
 	for(int i=0; i<dd.row; i++){
@@ -94,7 +95,7 @@ void cov(const MATRIX dd, float *covariance)
 //the matrix pumped out of cov is singular
 //however, the matrix returned will be in column major order
 //so, that needs to be taken into account...
-void pca(MATRIX x, MATRIX pca1, MATRIX pca2)
+void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 {
 	//16 x 20000 means a 16x16 covariance matrix
 	float *cov_mat = (float*)malloc(sizeof(float) * x.row * x.row);
@@ -147,7 +148,7 @@ void pca(MATRIX x, MATRIX pca1, MATRIX pca2)
 
 //normalizes along the column
 //ie if its a 16 x 20000 matrix, it normalizes the 16 vector
-static void normalize(MATRIX mat)
+static void normalize(MATRIXf mat)
 {
 	float sum = 0;
 	for (int i=0;i<mat.col; i++){
@@ -162,7 +163,7 @@ static void normalize(MATRIX mat)
 	}
 }
 
-int make_data(int n,int S, int F,float weight, MATRIX pc1, MATRIX pc2, MATRIX x)
+int make_data(int n,int S, int F,float weight, MATRIXf pc1, MATRIXf pc2, MATRIXf x)
 {
 
 	float center_vec[F];
@@ -318,17 +319,17 @@ int main( int argc, char **argv )
 		M = 28;
 		N = 32;
 	}
-	MATRIX pc1;
+	MATRIXf pc1;
 	pc1.data = (float*)malloc(sizeof(float) * 16);
 	pc1.row = 16;
 	pc1.col = 1;
 
-	MATRIX pc2;
+	MATRIXf pc2;
 	pc2.data = (float*)malloc(sizeof(float) * 16);
 	pc2.row = 16;
 	pc2.col = 1;
 
-	MATRIX x;
+	MATRIXf x;
 	x.data = (float*)malloc(sizeof(float) * 20000*16);
 	x.row = 16;
 	x.col = 20000;
@@ -404,17 +405,17 @@ int main( int argc, char **argv )
 		dm[i] = dm[i] / x.col;
 	}
 
-	MATRIX pd1;
+	MATRIXf pd1;
 	pd1.data = (float*)malloc(sizeof(float) * 20000);
 	pd1.row = 20000;
 	pd1.col = 1;
 
-	MATRIX pd2;
+	MATRIXf pd2;
 	pd2.data = (float*)malloc(sizeof(float) * 20000);
 	pd2.row = 20000;
 	pd2.col = 1;
 
-	MATRIX data_dm;
+	MATRIXf data_dm;
 	data_dm.data = (float*)malloc(sizeof(float) * 20000 * 16);
 	data_dm.row = 16;
 	data_dm.col = 20000;
@@ -458,12 +459,12 @@ int main( int argc, char **argv )
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	MATRIX ww;
+	MATRIXf ww;
 	ww.data = (float*)malloc(sizeof(float) * M * N * 16);
 	ww.row = N * M;
 	ww.col = 16;
 
-	MATRIX ww2;
+	MATRIXf ww2;
 	ww2.data = (float*)malloc(sizeof(float) * N *M);
 	ww2.row = N;
 	ww2.col = M;
@@ -516,7 +517,12 @@ int main( int argc, char **argv )
  * musical_chairs (cont)
  */
 
-	//-----------------------------------------------------------------------------------------------------
+	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
+	for (int i=0; i< 20; i++){
+		for (int j=0;j<1000; j++){
+			labels[i * 1000 + j] = i;
+		}
+	}
 
     // map PBO to get CUDA device pointer
 	initGLBuffers();
@@ -527,10 +533,14 @@ int main( int argc, char **argv )
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
-	runCudasGemm(ww,ww2,x, (unsigned int*)d_output);
+	setupCuda(ww,ww2,x, labels,(unsigned int*)d_output);
+    runCudasGemm((unsigned int*)d_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
 	glutMainLoop();
-	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww,ww2;
+
+
+	cleanup();
+	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww.data,ww2.data,labels;
 };
