@@ -3,37 +3,8 @@
 #include <stdio.h>
 #include <cutil_inline.h>
 
-//there's probably a much nicer way to do this...
-//but lets try this for now
-__global__ void coalesce(const float *ww, const float *data, const float *ww2,
-						unsigned int *ret,
-						unsigned int *indices,
-						float alpha, float beta,
-						int M, int N, int K)
-{
-	int i = threadIdx.x + blockDim.x * blockIdx.x;
-	float sum = 0;
-	float max_val = -10000;
-	int argmax = 0;
-	if (i < 20000){
-		for (int j=0; j<M; j++){
-			sum = 0;
-			for (int k=0; k<K; k++){
-				sum += ww[j * K + k] * data[k * N + i];
-			}
-			sum = alpha * sum + beta * ww2[j];
-			//ww2[j * N + i] = sum;
-			if (max_val < sum){
-					argmax = j;
-					max_val = sum;
-			}
-		}
-		//Quadro FX 5600 is not compute 1.1 compatible...*sigh*
-		//this might not matter because atomics are only block level
-		ret[argmax]++;
-		indices[i] = argmax;
-	}
-}
+#define REDUCE_BLOCKSIZE 256
+#define LOG2_REDUCE_BLOCKSIZE 8
 
 __global__ void reduce(uint *ret, uint *indices, const float *ww2, int index)
 {
@@ -43,12 +14,11 @@ __global__ void reduce(uint *ret, uint *indices, const float *ww2, int index)
 	__shared__ uint mem[1024];
 	__shared__ float s_ww2[1024];
 
-	int blocksize = 32;
+	int blocksize = REDUCE_BLOCKSIZE;
 	int coalesce_num = size/blocksize;
 	mem[threadIdx.x] = threadIdx.x;
 
-	//32 threads running...so multiply by 32 = 1024
-	for (int i=0; i<32; i++){
+	for (int i=0; i<1024/REDUCE_BLOCKSIZE; i++){
 		mem[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
 		s_ww2[threadIdx.x + i * blocksize] = ww2[threadIdx.x + i * blocksize];
 	}
@@ -63,16 +33,17 @@ __global__ void reduce(uint *ret, uint *indices, const float *ww2, int index)
 	}
 
 	//32->16, 16->8, 8->4, 4->2, 2->1
-	for (int i=0; i<5; i++){
+	for (int i=0; i<LOG2_REDUCE_BLOCKSIZE; i++){
 		__syncthreads();
 		blocksize = blocksize/2;
 		__syncthreads();
 
 		if (threadIdx.x < blocksize){
-			mem[threadIdx.x] = s_ww2[  mem[blocksize +threadIdx.x]] < s_ww2[mem[threadIdx.x]]? mem[threadIdx.x]:(mem[blocksize+threadIdx.x]);
+			mem[threadIdx.x] = s_ww2[ mem[blocksize +threadIdx.x]] < s_ww2[mem[threadIdx.x]]? mem[threadIdx.x]:(mem[blocksize+threadIdx.x]);
 		}
 	}
-	ret[ mem[0]]++;
+	__syncthreads();
+	ret[ mem[0] ]++;
 	indices[index] = mem[0];
 }
 
@@ -97,12 +68,12 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
         return EXIT_FAILURE;
     }
 
-    unsigned int *device_ret = 0;
-    unsigned int *ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
+    unsigned int *device_ret = 0, *device_labels, *device_indices;
 
-    unsigned int *device_indices = 0;
+    unsigned int *ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
 	uint *indices = (uint*)malloc(sizeof(uint) * data.col);
-    unsigned int timer;
+
+	unsigned int timer;
     cutCreateTimer(&timer);
     double time,total_time;
 
@@ -117,10 +88,10 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 		}
 	}
 
-	uint *device_labels;
 	cutilSafeCall(cudaMalloc((void**)&device_labels, sizeof(uint) * data.col));
 	cutilSafeCall(cudaMemcpy(device_labels, labels, sizeof(uint) * data.col, cudaMemcpyHostToDevice));
-    cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(unsigned int) * ww.row));
+
+	cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(unsigned int) * ww.row));
 
     cutilSafeCall(cudaMalloc((void**)&device_indices, sizeof(unsigned int) * data.col));
@@ -164,7 +135,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
-//    coalesce<<<80,256>>>(device_A, device_B, device_ww2, device_ret, device_indices, 2.0, -1.0, ww.row,data.col, data.row);
     for (int i=0; i<20000; i++){
 	    cutilSafeCall(cudaMemcpy(device_ww2, device_save, sizeof(float) * ww.row, cudaMemcpyDeviceToDevice));
 		cublasSgemv('N', 896,16, 2, device_A, 896,
@@ -177,7 +147,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 //		cudaError_t lasterror = cudaGetLastError();
 //		if (lasterror)
 //			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
-    	reduce<<<1,32>>>(device_ret,device_indices, device_ww2, i);
+    	reduce<<<1,REDUCE_BLOCKSIZE>>>(device_ret,device_indices, device_ww2, i);
     	cudaThreadSynchronize();
 //    	lasterror = cudaGetLastError();
 //    	if (lasterror)
