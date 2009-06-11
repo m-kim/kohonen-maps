@@ -76,6 +76,17 @@ __global__ void reduce(uint *ret, uint *indices, const float *ww2, int index)
 	indices[index] = mem[0];
 }
 
+__global__ void buildImage(uint *im, uint *labels, uint *indices)
+{
+	uint i = threadIdx.x + blockDim.x * blockIdx.x;
+	__shared__ int nn[32];
+	__shared__ int mm[32];
+	nn[threadIdx.x] = indices[i] / 28;
+	mm[threadIdx.x] = indices[i] - 28 * nn[threadIdx.x];
+	im[ nn[threadIdx.x] * 28 + mm[threadIdx.x]] = labels[i] + 1;
+
+
+}
 extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 {
     float* device_A, *device_B, *device_ww2, *device_save;
@@ -99,6 +110,16 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
+	uint *labels = (uint*)malloc(sizeof(uint) * data.col);
+	for (int i=0; i< 20; i++){
+		for (int j=0;j<1000; j++){
+			labels[i * 1000 + j] = i;
+		}
+	}
+
+	uint *device_labels;
+	cutilSafeCall(cudaMalloc((void**)&device_labels, sizeof(uint) * data.col));
+	cutilSafeCall(cudaMemcpy(device_labels, labels, sizeof(uint) * data.col, cudaMemcpyHostToDevice));
     cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(unsigned int) * ww.row));
 
@@ -165,6 +186,9 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     }
 
 
+    buildImage<<<625,32>>>(device_ret,device_labels,device_indices);
+    cudaThreadSynchronize();
+    printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -173,9 +197,9 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 
     cutResetTimer(timer);
     cutStartTimer(timer);
-    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
-    cutilSafeCall(cudaMemcpy(ret, device_ret, sizeof(float) * 896, cudaMemcpyDeviceToHost));
-    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
+//    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
+//    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
+	cutilSafeCall(cudaMemcpy(ret, device_ret, sizeof(uint) * 896, cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -189,50 +213,37 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cudaFree (device_ww2);
 	cudaFree(device_ret);
 	cudaFree(device_indices);
+	cudaFree(device_labels);
+//	int counter = 0;
+//	for (int i=0; i<56; i++){
+//		 for (int j=0; j<16; j++){
+//				printf("%d ", ret[i * 16 + j]);
+//				counter += ret[i * 16 + j];
+//		 }
+//		 printf("\n");
+//	}
+//	printf("%d\n",counter);
 
-	int counter = 0;
-	for (int i=0; i<56; i++){
-		 for (int j=0; j<16; j++){
-				printf("%d ", ret[i * 16 + j]);
-				counter += ret[i * 16 + j];
-		 }
-		 printf("\n");
-	}
-	printf("%d\n",counter);
-
-	uint *nn = (uint*)malloc(sizeof(uint) * data.col);
-	uint *mm = (uint*)malloc(sizeof(uint) * data.col);
-	for (int i=0; i<20000; i++){
-		nn[i] = indices[i]/28;
-		mm[i] = indices[i] - 28 * nn[i];
-	}
-
-	int *im = (int*)malloc(sizeof(int) * ww2.row * ww2.col);
-	int *labels = (int*)malloc(sizeof(int) * data.col);
-	memset(im, 0, sizeof(float) * ww2.row * ww2.col);
-	for (int i=0; i< 20; i++){
-		for (int j=0;j<1000; j++){
-			labels[i * 1000 + j] = i;
-		}
-	}
-
-	for (int i=0; i<data.col; i++)
-	{
-		im[ nn[i] * 28 + mm[i]] = labels[i] + 1;
-	}
+//	uint *nn = (uint*)malloc(sizeof(uint) * data.col);
+//	uint *mm = (uint*)malloc(sizeof(uint) * data.col);
+//	for (int i=0; i<20000; i++){
+//		nn[i] = indices[i]/28;
+//		mm[i] = indices[i] - 28 * nn[i];
+//	}
+//
+//	for (int i=0; i<data.col; i++)
+//	{
+//		im[ nn[i] * 28 + mm[i]] = labels[i] + 1;
+//	}
 
 	for (int i=0; i<32; i++){
 		printf("[");
-		for (int j=0; j<14; j++){
-			printf("%d ", im[i * 28 + j]);
-		}
-		printf("\n");
-		for (int j=14; j<28; j++){
-			printf("%d ", im[i * 28 + j]);
+		for (int j=0; j<28; j++){
+			printf("%2d ", ret[i * 28 + j]);
 		}
 		printf("]\n");
 	}
-	delete a, ret, indices, nn,mm, labels, im;
+	delete a, ret, indices, labels;
     return EXIT_SUCCESS;
 }
 
