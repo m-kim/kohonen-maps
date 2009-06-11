@@ -35,10 +35,8 @@ __global__ void coalesce(const float *ww, const float *data, const float *ww2,
 	}
 }
 
-__global__ void reduce(uint *ret, float *ww2)
+__global__ void reduce(uint *ret, uint *indices, const float *ww2, int index)
 {
-
-
 	int size = 1024;
 	//using shared memory here will limit me to 8KB...
 	//initialize with hard coded numbers because compile error on variable initialization
@@ -64,7 +62,7 @@ __global__ void reduce(uint *ret, float *ww2)
 		}
 	}
 
-////	//32->16, 16->8, 8->4, 4->2, 2->1
+	//32->16, 16->8, 8->4, 4->2, 2->1
 	for (int i=0; i<5; i++){
 		__syncthreads();
 		blocksize = blocksize/2;
@@ -75,6 +73,7 @@ __global__ void reduce(uint *ret, float *ww2)
 		}
 	}
 	ret[ mem[0]]++;
+	indices[index] = mem[0];
 }
 
 extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
@@ -91,7 +90,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     unsigned int *ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
 
     unsigned int *device_indices = 0;
-
+	uint *indices = (uint*)malloc(sizeof(uint) * data.col);
     unsigned int timer;
     cutCreateTimer(&timer);
     double time,total_time;
@@ -103,8 +102,8 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutilSafeCall(cudaMalloc((void**)&device_ret, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret, 0, sizeof(unsigned int) * ww.row));
 
-//    cutilSafeCall(cudaMalloc((void**)&device_indices, sizeof(unsigned int) * data.col));
-//    cutilSafeCall(cudaMemset(device_indices, 0, sizeof(unsigned int) * data.col));
+    cutilSafeCall(cudaMalloc((void**)&device_indices, sizeof(unsigned int) * data.col));
+    cutilSafeCall(cudaMemset(device_indices, 0, sizeof(unsigned int) * data.col));
 
     printf("setup matrix ww %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_A, sizeof(float) * ww.row * ww.col));
@@ -157,7 +156,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 //		cudaError_t lasterror = cudaGetLastError();
 //		if (lasterror)
 //			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
-    	reduce<<<1,32>>>(device_ret, device_ww2);
+    	reduce<<<1,32>>>(device_ret,device_indices, device_ww2, i);
     	cudaThreadSynchronize();
 //    	lasterror = cudaGetLastError();
 //    	if (lasterror)
@@ -176,6 +175,8 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutStartTimer(timer);
     cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
     cutilSafeCall(cudaMemcpy(ret, device_ret, sizeof(float) * 896, cudaMemcpyDeviceToHost));
+    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
+
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -189,13 +190,6 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 	cudaFree(device_ret);
 	cudaFree(device_indices);
 
-
-	for (int i=0; i<896; i++){
-		if (i < 5 || i > 891)
-			printf("%f ", a[i]);
-	}
-	printf("\n");
-
 	int counter = 0;
 	for (int i=0; i<56; i++){
 		 for (int j=0; j<16; j++){
@@ -206,8 +200,39 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 	}
 	printf("%d\n",counter);
 
+	uint *nn = (uint*)malloc(sizeof(uint) * data.col);
+	uint *mm = (uint*)malloc(sizeof(uint) * data.col);
+	for (int i=0; i<20000; i++){
+		nn[i] = indices[i]/28;
+		mm[i] = indices[i] - 28 * nn[i];
+	}
 
-	delete a, ret;
+	int *im = (int*)malloc(sizeof(int) * ww2.row * ww2.col);
+	int *labels = (int*)malloc(sizeof(int) * data.col);
+	memset(im, 0, sizeof(float) * ww2.row * ww2.col);
+	for (int i=0; i< 20; i++){
+		for (int j=0;j<1000; j++){
+			labels[i * 1000 + j] = i;
+		}
+	}
+
+	for (int i=0; i<data.col; i++)
+	{
+		im[ nn[i] * 28 + mm[i]] = labels[i] + 1;
+	}
+
+	for (int i=0; i<32; i++){
+		printf("[");
+		for (int j=0; j<14; j++){
+			printf("%d ", im[i * 28 + j]);
+		}
+		printf("\n");
+		for (int j=14; j<28; j++){
+			printf("%d ", im[i * 28 + j]);
+		}
+		printf("]\n");
+	}
+	delete a, ret, indices, nn,mm, labels, im;
     return EXIT_SUCCESS;
 }
 
