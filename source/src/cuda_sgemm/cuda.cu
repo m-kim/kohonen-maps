@@ -6,6 +6,8 @@
 #define REDUCE_BLOCKSIZE 256
 #define LOG2_REDUCE_BLOCKSIZE 8
 
+__constant__ uint constant_color[256];
+
 __global__ void reduce(uint *ret, uint *indices, const float *ww2, int index)
 {
 	int size = 1024;
@@ -55,10 +57,21 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	nn[threadIdx.x] = indices[i] / 28;
 	mm[threadIdx.x] = indices[i] - 28 * nn[threadIdx.x];
 	im[ nn[threadIdx.x] * 28 + mm[threadIdx.x]] = labels[i] + 1;
-
-
 }
-extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
+
+__global__ void expandImage(uint *im, const uint *ret)
+{
+
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	for (int i=0; i<16; i++){
+		for (int j=0; j<16; j++){
+			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * 28 + x]];
+		}
+	}
+}
+extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data, unsigned int *device_pbo)
 {
     float* device_A, *device_B, *device_ww2, *device_save;
     float* a = 0;
@@ -68,7 +81,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
         return EXIT_FAILURE;
     }
 
-    unsigned int *device_ret = 0, *device_labels, *device_indices;
+    unsigned int *device_labels, *device_indices, *device_ret;
 
     unsigned int *ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
 	uint *indices = (uint*)malloc(sizeof(uint) * data.col);
@@ -77,6 +90,17 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     cutCreateTimer(&timer);
     double time,total_time;
 
+    //setup color
+	unsigned char color[1024];
+	for(unsigned int i=0; i<255; i+=4){
+		color[i] = (unsigned char)i;
+		color[i + 1] = (i + 64) % 256;
+		color[i + 2] = (i + 128) % 256;
+		color[i + 3] = (i + 192) % 256;
+
+	}
+
+	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * 256, cudaMemcpyHostToDevice));
     total_time = 0;
     cutResetTimer(timer);
     cutStartTimer(timer);
@@ -88,6 +112,7 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 		}
 	}
 
+	cudaMemset(device_pbo, 128, sizeof(unsigned int) * 512 * 512);
 	cutilSafeCall(cudaMalloc((void**)&device_labels, sizeof(uint) * data.col));
 	cutilSafeCall(cudaMemcpy(device_labels, labels, sizeof(uint) * data.col, cudaMemcpyHostToDevice));
 
@@ -175,13 +200,15 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
     time = cutGetTimerValue(timer);
     total_time += time;
 
+    dim3 block(16,16);
+    dim3 grid(2,2);
+    expandImage<<<grid,block>>>(device_pbo, device_ret);
     printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
     cudaFree (device_A);
     cudaFree (device_B);
     cudaFree (device_ww2);
-	cudaFree(device_ret);
 	cudaFree(device_indices);
 	cudaFree(device_labels);
 //	int counter = 0;
@@ -206,13 +233,14 @@ extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data)
 //		im[ nn[i] * 28 + mm[i]] = labels[i] + 1;
 //	}
 
-	for (int i=0; i<32; i++){
+	for (int i=0; i<28; i++){
 		printf("[");
 		for (int j=0; j<28; j++){
 			printf("%2d ", ret[i * 28 + j]);
 		}
 		printf("]\n");
 	}
+
 	delete a, ret, indices, labels;
     return EXIT_SUCCESS;
 }

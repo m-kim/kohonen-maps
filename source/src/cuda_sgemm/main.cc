@@ -8,7 +8,15 @@
 #include <iostream>
 #include <fstream>
 
-extern "C" int runCudasGemm(MATRIX ww,MATRIX ww2, MATRIX data);
+#include <GL/glew.h>
+#include <GL/glut.h>
+
+#include <cutil_inline.h>
+#include <cutil_gl_inline.h>
+
+#define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
+
+extern "C" int runCudasGemm(MATRIX ww, MATRIX ww2, MATRIX data, unsigned int *device_ret);
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
         float* A, const int* lda, float* S, float* U, const int* ldu,
         float* VT, const int* ldvt, float* work,const int* lwork, const
@@ -16,10 +24,13 @@ extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const
 
 int M ;
 int N ;
-
 int expansion = 4;
-
 float bin1, bin2;
+
+GLuint pbo        = 0;          // OpenGL pixel buffer object
+GLuint displayTex = 0;
+unsigned int width = 512, height = 512;
+
 float stdDev(const MATRIX &mat)
 {
 	float mean_x = 0;
@@ -170,8 +181,135 @@ int make_data(int n,int S, int F,float weight, MATRIX pc1, MATRIX pc2, MATRIX x)
 
 }
 
+// display results using OpenGL (called by GLUT)
+void display()
+{
+
+	// Common diplay path
+	{
+		// display results
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		// download image from PBO to OpenGL texture
+		glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+		glBindTexture  (GL_TEXTURE_TYPE, displayTex);
+		glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+		glTexSubImage2D(GL_TEXTURE_TYPE,
+						0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+		glEnable(GL_TEXTURE_TYPE);
+
+		// draw textured quad
+		glDisable(GL_DEPTH_TEST);
+		glBegin(GL_QUADS);
+		glTexCoord2f(0    , height);  glVertex2f(0, 0);
+		glTexCoord2f(width, height);  glVertex2f(1, 0);
+		glTexCoord2f(width, 0     );  glVertex2f(1, 1);
+		glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
+		glEnd();
+		glDisable(GL_TEXTURE_TYPE);
+		glDisable(GL_FRAGMENT_PROGRAM_ARB);
+
+		glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+	}
+
+    glutSwapBuffers();
+    glutReportErrors();
+
+}
+void keyboard(unsigned char key, int /*x*/, int /*y*/)
+{
+    switch(key) {
+        case 27:
+            exit(0);
+            break;
+
+        default:
+            break;
+    }
+    glutPostRedisplay();
+}
+void initGLBuffers()
+{
+    if (pbo) {
+        // delete old buffer
+        cutilSafeCall(cudaGLUnregisterBufferObject(pbo));
+        glDeleteBuffersARB(1, &pbo);
+    }
+
+    // create pixel buffer object for display
+    glGenBuffersARB(1, &pbo);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uchar4), 0, GL_STREAM_DRAW_ARB);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    cutilSafeCall(cudaGLRegisterBufferObject(pbo));
+
+    // create texture for display
+    if (displayTex) {
+        glDeleteTextures(1, &displayTex);
+    }
+    glGenTextures(1, &displayTex);
+    glBindTexture  (GL_TEXTURE_TYPE, displayTex);
+    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture  (GL_TEXTURE_TYPE, 0);
+
+    // calculate new grid size
+//    gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
+}
+void reshape(int x, int y)
+{
+    width = x; height = y;
+
+    //initGLBuffers();
+
+    glViewport(0, 0, x, y);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+}
+void idle()
+{
+    glutPostRedisplay();
+}
+
+void initGL( int argc, char **argv )
+{
+    // initialize GLUT callback functions
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH);
+    glutInitWindowSize(width, height);
+    glutCreateWindow("CUDA bicubic texture filtering");
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+//    glutMouseFunc(mouse);
+//    glutMotionFunc(motion);
+    glutReshapeFunc(reshape);
+    glutIdleFunc(idle);
+
+
+
+    glewInit();
+    if (!glewIsSupported("GL_VERSION_2_0 "
+                         "GL_ARB_pixel_buffer_object "
+                         ))
+    {
+        fprintf(stderr, "Required OpenGL extensions are missing.");
+        exit(-1);
+    }
+}
+
+
 int main( int argc, char **argv )
 {
+
+	initGL(argc,argv);
 	if (argc > 1){
 		M = atoi(argv[1]);
 		N = atoi(argv[1]);
@@ -380,11 +518,19 @@ int main( int argc, char **argv )
 
 	//-----------------------------------------------------------------------------------------------------
 
+    // map PBO to get CUDA device pointer
+	initGLBuffers();
+    uchar4 *d_output;
+    cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
+
 	//chunk
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
-	runCudasGemm(ww,ww2,x);
+	runCudasGemm(ww,ww2,x, (unsigned int*)d_output);
 
+	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
+
+	glutMainLoop();
 	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww,ww2;
 };

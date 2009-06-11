@@ -12,6 +12,8 @@ CUDA_INCLUDE_DIRECTORIES(
 INCLUDE_DIRECTORIES(
   ${CUDA_INCLUDE_DIRS}
   ${CUDA_CUT_INCLUDE_DIR}
+  ${OPENGL_INCLUDE_DIR}
+  ${GLUT_INCLUDE_DIR}
   )
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/shared.h.in ${CMAKE_CURRENT_SOURCE_DIR}/shared.h)
 
@@ -24,6 +26,8 @@ TARGET_LINK_LIBRARIES(cuda_som
   ${CUDA_CUBLAS_LIBRARIES}
   ${CUDA_CUT_LIBRARY}
   lapack
+  GLEW
+  ${GLUT_LIBRARY}
   )
 
 # Or compile the cuda code into a shared library.
