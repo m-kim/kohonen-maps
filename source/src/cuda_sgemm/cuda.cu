@@ -21,11 +21,13 @@ __global__ void update_weights(const float *x, float *ret)
 	int row = threadIdx.y + blockDim.y * blockIdx.y;
 	int col = threadIdx.x + blockDim.x * blockIdx.x;
 
-	int _min = max(row - beta, 0.);
-	int _max = min(row + beta + 1, 28.);
+	int _min = max(row - 8., 0.);
+	int _max = min(row + 8. + 1, 32.);
 
-	for (int i=_min; i<_max; i++){
-		ret[ row * 28 + col ] += x[row * 28 + col + i];
+	if (col < 28){
+		for (int i=_min; i<_max; i++){
+			ret[ row * 28 + col ] += x[i * 28 + col];
+		}
 	}
 }
 
@@ -255,7 +257,7 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     cutStartTimer(timer);
 //    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
 //    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
-	cutilSafeCall(cudaMemcpy(a, device_sum.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
+	cutilSafeCall(cudaMemcpy(a, device_ww2.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -302,24 +304,24 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 //    	}
 //    	printf("\n");
 //    }
-	float counter = 0;
-    for (int i=0; i<1; i++){
-    	for (int j=0; j<32; j++){
-    		for (int k =0 ; k<28; k++){
-    			printf("%f ", a[896 *  i + j * 28 + k]);
-    			counter += a[896 * i + j * 28 + k];
-    		}
-    		printf("\n");
-    	}
-    	printf("\n");
-    }
-    printf("counter %f\n", counter);
-//    for (int i=0; i<16; i++){
-//    	for (int j=0; j<896; j++){
-//    		printf("%f ", a[i * 896 + j]);
+//	float counter = 0;
+//    for (int i=0; i<1; i++){
+//    	for (int j=0; j<32; j++){
+//    		for (int k =0 ; k<28; k++){
+//    			printf("%f ", a[896 *  i + j * 28 + k]);
+//    			counter += a[896 * i + j * 28 + k];
+//    		}
+//    		printf("\n");
 //    	}
 //    	printf("\n");
 //    }
+//    printf("counter %f\n", counter);
+    for (int i=0; i<32; i++){
+    	for (int j=0; j<28; j++){
+    		printf("%f ", a[i * 28 + j]);
+    	}
+    	printf("\n");
+    }
     return EXIT_SUCCESS;
 }
 
