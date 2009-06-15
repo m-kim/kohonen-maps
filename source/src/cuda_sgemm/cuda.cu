@@ -14,6 +14,20 @@ unsigned int *ret, *indices;
 
 
 __constant__ uint constant_color[256];
+__constant__ float alpha = 0.6, beta = 8;
+
+__global__ void update_weights(const float *x, float *ret)
+{
+	int row = threadIdx.y + blockDim.y * blockIdx.y;
+	int col = threadIdx.x + blockDim.x * blockIdx.x;
+
+	int _min = max(row - beta, 0.);
+	int _max = min(row + beta + 1, 28.);
+
+	for (int i=_min; i<_max; i++){
+		ret[ row * 28 + col ] += x[row * 28 + col + i];
+	}
+}
 
 //Calculate argmax and sum the data vectors
 __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
@@ -46,7 +60,6 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 	for (int i=0; i<LOG2_REDUCE_BLOCKSIZE; i++){
 		__syncthreads();
 		blocksize = blocksize/2;
-		__syncthreads();
 
 		if (threadIdx.x < blocksize){
 			argmax[threadIdx.x] = s_vec[ argmax[blocksize +threadIdx.x]] < s_vec[argmax[threadIdx.x]]? argmax[threadIdx.x]:(argmax[blocksize+threadIdx.x]);
@@ -55,10 +68,10 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 	__syncthreads();
 	ret[ argmax[0] ]++;
 	indices[index] = argmax[0];
+
+	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < 16)
-		ww_sum[ argmax[0] * 16 + threadIdx.x] += data[index * 16 + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
-
-
+		ww_sum[ argmax[0] + threadIdx.x * 896] += data[index * 16 + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
@@ -141,6 +154,33 @@ extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, u
     	}
     }
 
+	device_ww2.row = ww2.row;
+	device_ww2.col = ww2.col;
+    printf("setup vector ww2 %d\n", device_ww2.row * device_ww2.col);
+    cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
+    cutilSafeCall(cudaMemcpy(device_ww2.data, ww2.data, sizeof(float) * ww2.row * ww2.col, cudaMemcpyHostToDevice));
+
+    device_save.row = ww.row;
+    device_save.col = ww.col;
+    printf("setup vector save %d %d\n", ww.row, ww.col);
+    cutilSafeCall(cudaMalloc((void**)&device_save.data, sizeof(float) * device_save.row * device_save.col));
+    cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_save.row * device_save.col, cudaMemcpyDeviceToDevice));
+
+    device_sum.row = ww.row;
+    device_sum.col = ww.col;
+    printf("setup matrix sum %d %d\n", ww.row, ww.col);
+    cutilSafeCall(cudaMalloc((void**)&device_sum.data, sizeof(float) * device_sum.row * device_sum.col));
+    cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col ));
+
+
+    a = (float *)malloc (ww.row * data.col * sizeof (*a));
+    if (!a) {
+        printf ("host memory allocation failed");
+    }
+
+	ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
+	indices = (uint*)malloc(sizeof(uint) * data.col);
+
     device_data.row = data.row;
     device_data.col = data.col;
     printf("setup matrix data %d %d\n", data.row, data.col);
@@ -154,38 +194,9 @@ extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, u
     	}
     }
 
-	device_ww2.row = ww2.row;
-	device_ww2.col = ww2.col;
-    printf("setup vector ww2 %d\n", device_ww2.row * device_ww2.col);
-    cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
-    cutilSafeCall(cudaMemcpy(device_ww2.data, ww2.data, sizeof(float) * ww2.row * ww2.col, cudaMemcpyHostToDevice));
-
-    device_save.row = ww.row;
-    device_save.col = ww.col;
-    printf("setup vector save %d\n", ww.row);
-    cutilSafeCall(cudaMalloc((void**)&device_save.data, sizeof(float) * device_save.row * device_save.col));
-    cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_save.row * device_save.col, cudaMemcpyDeviceToDevice));
-
-    device_sum.row = ww.row;
-    device_sum.col = ww.col;
-    printf("setup vector sum %d\n", ww.row);
-    cutilSafeCall(cudaMalloc((void**)&device_sum.data, sizeof(float) * device_sum.row * device_sum.col));
-    cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col ));
-
-
-    a = (float *)malloc (ww.row * data.col * sizeof (*a));
-    if (!a) {
-        printf ("host memory allocation failed");
-    }
-
-	ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
-	indices = (uint*)malloc(sizeof(uint) * data.col);
 
 }
-void updateWeights(MATRIXf ww)
-{
 
-}
 extern "C" int runCudasGemm(unsigned int *device_pbo)
 {
 	unsigned int timer;
@@ -204,6 +215,7 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     cutResetTimer(timer);
     cutStartTimer(timer);
 
+    cublasInit();
     for (int i=0; i<20000; i++){
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('N', 896,16, 2, device_ww.data, 896,
@@ -223,6 +235,7 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
         	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
     }
 
+    cublasShutdown();
     //once we reach this point, we only really care about the device_indices
     //so we can map 'em to a picture
 
@@ -232,10 +245,13 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
-
     printf("Run time %f\n\n", time);
 
     cutResetTimer(timer);
+    dim3 block(16,16);
+    dim3 grid(1, 2);
+    cudaMemset(device_ww2.data, 0, sizeof(float) * 896);
+	update_weights<<<grid,block>>>(device_sum.data + 896 * 6, device_ww2.data);
     cutStartTimer(timer);
 //    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
 //    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
@@ -245,8 +261,8 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     time = cutGetTimerValue(timer);
     total_time += time;
 
-    dim3 block(16,16);
-    dim3 grid(2,2);
+     block = dim3(16,16);
+    grid = dim3(2,2);
     expandImage<<<grid,block>>>(device_pbo, device_ret.data);
     printf("Transfer back time %f\n\n", time);
 
@@ -280,7 +296,30 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 //		}
 //		printf("]\n");
 //	}
-
+//    for (int i=0; i<32;i++){
+//    	for(int j=0; j<28; j++){
+//    		printf("%f ", a[i * 28 + j]);
+//    	}
+//    	printf("\n");
+//    }
+	float counter = 0;
+    for (int i=0; i<1; i++){
+    	for (int j=0; j<32; j++){
+    		for (int k =0 ; k<28; k++){
+    			printf("%f ", a[896 *  i + j * 28 + k]);
+    			counter += a[896 * i + j * 28 + k];
+    		}
+    		printf("\n");
+    	}
+    	printf("\n");
+    }
+    printf("counter %f\n", counter);
+//    for (int i=0; i<16; i++){
+//    	for (int j=0; j<896; j++){
+//    		printf("%f ", a[i * 896 + j]);
+//    	}
+//    	printf("\n");
+//    }
     return EXIT_SUCCESS;
 }
 
