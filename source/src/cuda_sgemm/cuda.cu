@@ -26,7 +26,7 @@ __global__ void update_weights(const float *x, float *ret)
 
 	if (col < 28){
 		for (int i=_min; i<_max; i++){
-			ret[ row * 28 + col ] += x[i * 28 + col];
+			ret[ col * 16 + row ] += x[i * 28 + col];
 		}
 	}
 }
@@ -253,11 +253,11 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     dim3 block(16,16);
     dim3 grid(1, 2);
     cudaMemset(device_ww2.data, 0, sizeof(float) * 896);
-	update_weights<<<grid,block>>>(device_sum.data + 896 * 6, device_ww2.data);
+	update_weights<<<grid,block>>>(device_sum.data + 896, device_ww2.data);
     cutStartTimer(timer);
 //    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
 //    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
-	cutilSafeCall(cudaMemcpy(a, device_ww2.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
+	cutilSafeCall(cudaMemcpy(a, device_sum.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -316,13 +316,27 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 //    	printf("\n");
 //    }
 //    printf("counter %f\n", counter);
+
     for (int i=0; i<32; i++){
     	for (int j=0; j<28; j++){
-    		printf("%f ", a[i * 28 + j]);
+    		printf("%f ", a[896+i * 28 + j]);
     	}
     	printf("\n");
     }
-    return EXIT_SUCCESS;
+    printf("\n");
+    for (int i=0; i<32; i++){
+    	for (int j=0; j<28; j++){
+			int _min = 0;//max(i - 8., 0.);
+			int _max = 9;//min(i+9., 32.);
+			float sum = 0;
+			for (int k= _min; k<_max; k++){
+				sum +=a[i * 896 + k * 28 + j];
+			}
+			printf("%f ", sum );
+		}
+		printf("\n");
+    }
+   	return EXIT_SUCCESS;
 }
 
 
