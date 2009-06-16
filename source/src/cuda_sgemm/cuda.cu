@@ -324,8 +324,8 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     	printf("\n");
     }
     printf("\n");
-    for (int slab = 0; slab < 16; slab++){
-		for (int i=0; i<32; i++){
+    for (int slab = 0; slab < 32; slab++){
+		for (int i=0; i<16; i++){
 			for (int j=0; j<28; j++){
 				int _min = max(slab - 8., 0.);
 				int _max = min(slab+9., 32.);
