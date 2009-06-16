@@ -324,15 +324,18 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     	printf("\n");
     }
     printf("\n");
-    for (int i=0; i<32; i++){
-    	for (int j=0; j<28; j++){
-			int _min = 0;//max(i - 8., 0.);
-			int _max = 9;//min(i+9., 32.);
-			float sum = 0;
-			for (int k= _min; k<_max; k++){
-				sum +=a[i * 896 + k * 28 + j];
+    for (int slab = 0; slab < 16; slab++){
+		for (int i=0; i<32; i++){
+			for (int j=0; j<28; j++){
+				int _min = max(slab - 8., 0.);
+				int _max = min(slab+9., 32.);
+				float sum = 0;
+				for (int k= _min; k<_max; k++){
+					sum +=a[i * 896 + k * 28 + j];
+				}
+				printf("%f ", sum );
 			}
-			printf("%f ", sum );
+			printf("\n");
 		}
 		printf("\n");
     }
