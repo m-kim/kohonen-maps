@@ -16,19 +16,29 @@ unsigned int *ret, *indices;
 __constant__ uint constant_color[256];
 __constant__ float alpha = 0.6, beta = 8;
 
-__global__ void update_weights(const float *x, float *ret)
+__global__ void update_weights(float *a, float *b)
 {
-	int row = threadIdx.y + blockDim.y * blockIdx.y;
-	int col = threadIdx.x + blockDim.x * blockIdx.x;
+	int i = threadIdx.y + blockDim.y * blockIdx.y;
+	int j = threadIdx.x + blockDim.x * blockIdx.x;
 
-	int _min = max(row - 8., 0.);
-	int _max = min(row + 8. + 1, 32.);
-
-	if (col < 28){
-		for (int i=_min; i<_max; i++){
-			ret[ col * 16 + row ] += x[i * 28 + col];
+	for (int slab=0; slab<28; slab++){
+		int _min = max(j - 8., 0.);
+		int _max = min(j+9., 32.);
+		for (int k= _min; k<_max; k++){
+			b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
 		}
 	}
+
+	__syncthreads();
+
+	for (int slab = 0; slab < 28; slab++){
+		int _min = max(slab - 8., 0.);
+		int _max = min(slab+9., 28.);
+		for (int k= _min; k<_max; k++){
+		 	a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
+		}
+	}
+
 }
 
 //Calculate argmax and sum the data vectors
@@ -162,15 +172,15 @@ extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, u
     cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
     cutilSafeCall(cudaMemcpy(device_ww2.data, ww2.data, sizeof(float) * ww2.row * ww2.col, cudaMemcpyHostToDevice));
 
-    device_save.row = ww.row;
-    device_save.col = ww.col;
+    device_save.row = ww2.row;
+    device_save.col = ww2.col;
     printf("setup vector save %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_save.data, sizeof(float) * device_save.row * device_save.col));
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_save.row * device_save.col, cudaMemcpyDeviceToDevice));
 
     device_sum.row = ww.row;
     device_sum.col = ww.col;
-    printf("setup matrix sum %d %d\n", ww.row, ww.col);
+    printf("setup matrix sum %d %d\n", device_sum.row, device_sum.col);
     cutilSafeCall(cudaMalloc((void**)&device_sum.data, sizeof(float) * device_sum.row * device_sum.col));
     cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col ));
 
@@ -185,9 +195,9 @@ extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, u
 
     device_data.row = data.row;
     device_data.col = data.col;
-    printf("setup matrix data %d %d\n", data.row, data.col);
-    cutilSafeCall(cudaMalloc((void**)&device_data, sizeof(float) * data.row*data.col));
-    cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * data.row * data.col, cudaMemcpyHostToDevice));
+    printf("setup matrix data %d %d\n", device_data.row, device_data.col);
+    cutilSafeCall(cudaMalloc((void**)&device_data, sizeof(float) * device_data.row*device_data.col));
+    cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
     for (int i=0; i<data.row; i++){
     	for (int j=0; j<data.col; j++){
     		cutilSafeCall(cudaMemcpy(
@@ -251,9 +261,9 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 
     cutResetTimer(timer);
     dim3 block(16,16);
-    dim3 grid(1, 2);
-    cudaMemset(device_ww2.data, 0, sizeof(float) * 896);
-	update_weights<<<grid,block>>>(device_sum.data + 896, device_ww2.data);
+    dim3 grid(2, 1);
+    cudaMemset(device_ww.data, 0, sizeof(float) * 896 * 16);
+	update_weights<<<grid,block>>>(device_sum.data, device_ww.data);
     cutStartTimer(timer);
 //    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
 //    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
@@ -269,15 +279,15 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
-//	int counter = 0;
-//	for (int i=0; i<56; i++){
-//		 for (int j=0; j<16; j++){
-//				printf("%d ", ret[i * 16 + j]);
-//				counter += ret[i * 16 + j];
-//		 }
-//		 printf("\n");
-//	}
-//	printf("%d\n",counter);
+    for (int i=0; i<16; i++){
+    	for (int j=0; j<32; j++){
+    		for (int k=0; k<28; k++){
+    			printf("%f ", a[i * 32 * 28 + j * 28 + k]);
+    		}
+    		printf("\n");
+    	}
+    	printf("\n");
+    }
 
 //	uint *nn = (uint*)malloc(sizeof(uint) * data.col);
 //	uint *mm = (uint*)malloc(sizeof(uint) * data.col);
@@ -317,52 +327,43 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 //    }
 //    printf("counter %f\n", counter);
 
-    float b[16 * 32 * 28];
-    memset(b, 0, sizeof(float) * 16 * 32 *28);
-	for (int slab = 0; slab < 32; slab++){
-		for (int i=0; i<16; i++){  //vector size...
-			for (int j=0; j<28; j++){
-				int _min = max(slab - 8., 0.);
-				int _max = min(slab+9., 32.);
-				for (int k= _min; k<_max; k++){
-					b[i * 896 + slab * 28 + j]  += a[i * 896 + k * 28 + j];
-				}
-			}
-		}
-    }
-//    for (int i=0; i<16; i++){
-//    	for (int j=0; j<32; j++){
-//    		for (int k=0; k<28; k++){
-//    			printf("%f ", b[i * 896 + j * 28 + k]);
-//    		}
-//			printf("\n");
-//    	}
-//    	printf("\n");
+//    float b[16 * 32 * 28];
+//    memset(b, 0, sizeof(float) * 16 * 32 *28);
+//	for (int i=0; i<16; i++){  //vector size...
+//		for (int j = 0; j < 32; j++){
+//			for (int slab=0; slab<28; slab++){
+//				int _min = max(j - 8., 0.);
+//				int _max = min(j+9., 32.);
+//				for (int k= _min; k<_max; k++){
+//					b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
+//				}
+//			}
+//		}
 //    }
-	memset(a, 0, sizeof(float) * 28 *32 * 16);
-	for (int i=0; i<16; i++){  //vector size...
-		for (int slab = 0; slab < 28; slab++){
-			for (int j=0; j<32; j++){
-				int _min = max(slab - 8., 0.);
-				int _max = min(slab+9., 28.);
-				for (int k= _min; k<_max; k++){
-					a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
-				}
-			}
-		}
-    }
-	for (int i=0; i<10; i++){
-		printf("%f\n",b[28 + i]);
-	}
-	for (int i=0; i<16; i++){
-		for (int j=0; j<32; j++){
-			for (int k=0; k<28; k++){
-				printf("%f ", a[i * 896 + j * 28 + k]);
-			}
-			printf("\n");
-		}
-		printf("\n");
-	}
+//	memset(a, 0, sizeof(float) * 28 *32 * 16);
+//	for (int i=0; i<16; i++){  //vector size...
+//		for (int j=0; j<32; j++){
+//			for (int slab = 0; slab < 28; slab++){
+//				int _min = max(slab - 8., 0.);
+//				int _max = min(slab+9., 28.);
+//				for (int k= _min; k<_max; k++){
+//				 	a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
+//				}
+//			}
+//		}
+//    }
+//	for (int i=0; i<10; i++){
+//		printf("%f\n",b[28 + i]);
+//	}
+//	for (int i=0; i<16; i++){
+//		for (int j=0; j<32; j++){
+//			for (int k=0; k<28; k++){
+//				printf("%f ", a[i * 896 + j * 28 + k]);
+//			}
+//			printf("\n");
+//		}
+//		printf("\n");
+//	}
 
    	return EXIT_SUCCESS;
 }
