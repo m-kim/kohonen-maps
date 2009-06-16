@@ -319,8 +319,8 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 
     float b[16 * 32 * 28];
     memset(b, 0, sizeof(float) * 16 * 32 *28);
-    for (int slab = 0; slab < 32; slab++){
-		for (int i=0; i<16; i++){
+	for (int slab = 0; slab < 32; slab++){
+		for (int i=0; i<16; i++){  //vector size...
 			for (int j=0; j<28; j++){
 				int _min = max(slab - 8., 0.);
 				int _max = min(slab+9., 32.);
@@ -330,15 +330,39 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 			}
 		}
     }
-    for (int i=0; i<16; i++){
-    	for (int j=0; j<32; j++){
-    		for (int k=0; k<28; k++){
-    			printf("%f ", b[i * 896 + j * 28 + k]);
-    		}
-			printf("\n");
-    	}
-    	printf("\n");
+//    for (int i=0; i<16; i++){
+//    	for (int j=0; j<32; j++){
+//    		for (int k=0; k<28; k++){
+//    			printf("%f ", b[i * 896 + j * 28 + k]);
+//    		}
+//			printf("\n");
+//    	}
+//    	printf("\n");
+//    }
+	memset(a, 0, sizeof(float) * 28 *32 * 16);
+	for (int i=0; i<16; i++){  //vector size...
+		for (int slab = 0; slab < 28; slab++){
+			for (int j=0; j<32; j++){
+				int _min = max(slab - 8., 0.);
+				int _max = min(slab+9., 28.);
+				for (int k= _min; k<_max; k++){
+					a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
+				}
+			}
+		}
     }
+	for (int i=0; i<10; i++){
+		printf("%f\n",b[28 + i]);
+	}
+	for (int i=0; i<16; i++){
+		for (int j=0; j<32; j++){
+			for (int k=0; k<28; k++){
+				printf("%f ", a[i * 896 + j * 28 + k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
 
    	return EXIT_SUCCESS;
 }
