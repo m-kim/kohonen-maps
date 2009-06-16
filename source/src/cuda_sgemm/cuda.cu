@@ -7,7 +7,7 @@
 #define LOG2_REDUCE_BLOCKSIZE 8
 
 MATRIXf device_ww, device_data, device_ww2, device_save, device_sum;
-MATRIXu device_labels, device_indices, device_ww_count, device_ret;
+MATRIXu device_labels, device_indices, device_ww_count, device_ret,device_ww_count2;
 
 float* a;
 unsigned int *ret, *indices;
@@ -16,31 +16,46 @@ unsigned int *ret, *indices;
 __constant__ uint constant_color[256];
 __constant__ float alpha = 0.6, beta = 8;
 
-__global__ void update_weights(float *a, float *b)
+__global__ void update_weights(float *a, float *b, uint *ww_count, uint *count)
 {
-	int i = threadIdx.y + blockDim.y * blockIdx.y;
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
+	int slab = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int slab=0; slab<28; slab++){
+	if (slab < 28){
 		int _min = max(j - 8., 0.);
 		int _max = min(j+9., 32.);
-		for (int k= _min; k<_max; k++){
-			b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
+
+		for (int i=0; i<16; i++){  //vector size...
+			for (int k= _min; k<_max; k++){
+				b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
+			}
 		}
-	}
-
-	__syncthreads();
-
-	for (int slab = 0; slab < 28; slab++){
-		int _min = max(slab - 8., 0.);
-		int _max = min(slab+9., 28.);
 		for (int k= _min; k<_max; k++){
-		 	a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
+			count[j * 28 + slab] += ww_count[k * 28 + slab];
 		}
-	}
 
+	}
 }
 
+__global__ void update_weights2(float *a, float *b, uint *ww_count, uint *count)
+{
+	int j = threadIdx.x + blockDim.x * blockIdx.x;
+	int slab = threadIdx.y + blockDim.y * blockIdx.y;
+
+	int _min = max(slab - 8., 0.);
+	int _max = min(slab+9., 28.);
+
+	if (slab < 28){
+		for (int i=0; i<16; i++){  //vector size...
+			for (int k= _min; k<_max; k++){
+				a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
+			}
+		}
+		for (int k= _min; k<_max; k++){
+			ww_count[j * 28 + slab] += count[j * 28 + k];
+		}
+	}
+}
 //Calculate argmax and sum the data vectors
 __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
 {
@@ -142,6 +157,11 @@ extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, u
 	device_ww_count.col = ww.col;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * ww.row));
+
+	device_ww_count2.row = ww.row;
+	device_ww_count2.col = ww.col;
+	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * ww.row));
+    cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * ww.row));
 
     device_indices.row = ww.row;
     device_indices.col = 1;
@@ -261,13 +281,20 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 
     cutResetTimer(timer);
     dim3 block(16,16);
-    dim3 grid(2, 1);
+    dim3 grid(2, 2);
     cudaMemset(device_ww.data, 0, sizeof(float) * 896 * 16);
-	update_weights<<<grid,block>>>(device_sum.data, device_ww.data);
+	update_weights<<<grid,block>>>(device_sum.data, device_ww.data, device_ww_count.data, device_ww_count2.data);
+	cudaThreadSynchronize();
+	update_weights2<<<grid,block>>>(device_sum.data, device_ww.data, device_ww_count.data, device_ww_count2.data);
+	cudaThreadSynchronize();
     cutStartTimer(timer);
 //    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
 //    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
 	cutilSafeCall(cudaMemcpy(a, device_sum.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
+
+	int ww_count[device_ww.row * device_ww.col];
+
+	cutilSafeCall(cudaMemcpy(ww_count, device_ww_count.data, sizeof(int) * device_ww.row * device_ww.col, cudaMemcpyDeviceToHost));
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -279,15 +306,15 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
-    for (int i=0; i<16; i++){
-    	for (int j=0; j<32; j++){
-    		for (int k=0; k<28; k++){
-    			printf("%f ", a[i * 32 * 28 + j * 28 + k]);
-    		}
-    		printf("\n");
-    	}
-    	printf("\n");
-    }
+//    for (int i=0; i<16; i++){
+//    	for (int j=0; j<32; j++){
+//    		for (int k=0; k<28; k++){
+//    			printf("%f ", a[i * 32 * 28 + j * 28 + k]);
+//    		}
+//    		printf("\n");
+//    	}
+//    	printf("\n");
+//    }
 
 //	uint *nn = (uint*)malloc(sizeof(uint) * data.col);
 //	uint *mm = (uint*)malloc(sizeof(uint) * data.col);
@@ -326,45 +353,58 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 //    	printf("\n");
 //    }
 //    printf("counter %f\n", counter);
-
+//	int count[32 * 28];
+//
+//	memset(count, 0, sizeof(int) * 32 * 28);
 //    float b[16 * 32 * 28];
 //    memset(b, 0, sizeof(float) * 16 * 32 *28);
-//	for (int i=0; i<16; i++){  //vector size...
-//		for (int j = 0; j < 32; j++){
-//			for (int slab=0; slab<28; slab++){
-//				int _min = max(j - 8., 0.);
-//				int _max = min(j+9., 32.);
+//
+//	for (int j = 0; j < 32; j++){
+//		int _min = max(j - 8., 0.);
+//		int _max = min(j+9., 32.);
+//		for (int slab=0; slab<28; slab++){
+//			for (int i=0; i<16; i++){  //vector size...
 //				for (int k= _min; k<_max; k++){
 //					b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
 //				}
 //			}
+//			for (int k= _min; k<_max; k++){
+//				count[j * 28 + slab] += ww_count[k * 28 + slab];
+//			}
 //		}
 //    }
 //	memset(a, 0, sizeof(float) * 28 *32 * 16);
-//	for (int i=0; i<16; i++){  //vector size...
+//	memset(ww_count, 0, sizeof(int) * 28 * 32);
+//	for (int slab = 0; slab < 28; slab++){
+//		int _min = max(slab - 8., 0.);
+//		int _max = min(slab+9., 28.);
 //		for (int j=0; j<32; j++){
-//			for (int slab = 0; slab < 28; slab++){
-//				int _min = max(slab - 8., 0.);
-//				int _max = min(slab+9., 28.);
+//			for (int i=0; i<16; i++){  //vector size...
 //				for (int k= _min; k<_max; k++){
 //				 	a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
 //				}
 //			}
+//			for (int k= _min; k<_max; k++){
+//				ww_count[j * 28 + slab] += count[j * 28 + k];
+//			}
 //		}
 //    }
-//	for (int i=0; i<10; i++){
-//		printf("%f\n",b[28 + i]);
-//	}
-//	for (int i=0; i<16; i++){
-//		for (int j=0; j<32; j++){
-//			for (int k=0; k<28; k++){
-//				printf("%f ", a[i * 896 + j * 28 + k]);
-//			}
-//			printf("\n");
-//		}
-//		printf("\n");
-//	}
 
+	for (int i=0; i<16; i++){
+		for (int j=0; j<32; j++){
+			for (int k=0; k<28; k++){
+				printf("%f ", a[i * 896 + j * 28 + k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
+
+	for (int i=0; i<32; i++){
+		for (int j=0; j<28;j++){
+			printf("%d ", ww_count[i * 28 + j]);
+		}printf("\n");
+	}
    	return EXIT_SUCCESS;
 }
 
