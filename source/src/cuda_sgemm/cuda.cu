@@ -12,18 +12,20 @@ MATRIXu device_labels, device_indices, device_ww_count, device_ret,device_ww_cou
 float* a;
 unsigned int *ret, *indices;
 
+float host_alpha[2];
+int host_r = -1, host_T = 20, host_beta[2];
 
 __constant__ uint constant_color[256];
-__constant__ float alpha = 0.6, beta = 8;
+__constant__ int beta[2];
 
-__global__ void update_weights(float *a, float *b, uint *ww_count, uint *count)
+__global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
 	int slab = threadIdx.y + blockDim.y * blockIdx.y;
 
 	if (slab < 28){
-		int _min = max(j - 8., 0.);
-		int _max = min(j+9., 32.);
+		int _min = max(j - _beta, 0);
+		int _max = min(j + _beta + 1, 32);
 
 		for (int i=0; i<16; i++){  //vector size...
 			for (int k= _min; k<_max; k++){
@@ -37,13 +39,13 @@ __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count)
 	}
 }
 
-__global__ void update_weights2(float *a, float *b, uint *ww_count, uint *count)
+__global__ void update_weights2(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
 	int slab = threadIdx.y + blockDim.y * blockIdx.y;
 
-	int _min = max(slab - 8., 0.);
-	int _max = min(slab+9., 28.);
+	int _min = max(slab - _beta, 0);
+	int _max = min(slab + _beta + 1, 28);
 
 	if (slab < 28){
 		for (int i=0; i<16; i++){  //vector size...
@@ -145,6 +147,13 @@ extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, u
 
 	}
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * 256, cudaMemcpyHostToDevice));
+
+	host_beta[0] = 8;
+	host_beta[1] = 8;
+	host_alpha[0] = .6;
+	host_alpha[1] = .6;
+
+	cutilSafeCall(cudaMemcpyToSymbol(beta, host_beta, sizeof(int) * 2, cudaMemcpyHostToDevice));
 
 	cudaMemset(device_pbo, 128, sizeof(unsigned int) * 512 * 512);
 
@@ -283,14 +292,13 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     dim3 block(16,16);
     dim3 grid(2, 2);
     cudaMemset(device_ww.data, 0, sizeof(float) * 896 * 16);
-	update_weights<<<grid,block>>>(device_sum.data, device_ww.data, device_ww_count.data, device_ww_count2.data);
+	update_weights<<<grid,block>>>(device_sum.data, device_ww.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
-	update_weights2<<<grid,block>>>(device_sum.data, device_ww.data, device_ww_count.data, device_ww_count2.data);
+	update_weights2<<<grid,block>>>(device_sum.data, device_ww.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
     cutStartTimer(timer);
-//    cutilSafeCall(cudaMemcpy(a, device_ww2, sizeof(float) * 896, cudaMemcpyDeviceToHost));
-//    cutilSafeCall(cudaMemcpy(indices, device_indices, sizeof(uint) * data.col, cudaMemcpyDeviceToHost));
-	cutilSafeCall(cudaMemcpy(a, device_sum.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
+
+    cutilSafeCall(cudaMemcpy(a, device_sum.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
 
 	int ww_count[device_ww.row * device_ww.col];
 
@@ -306,89 +314,6 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
-//    for (int i=0; i<16; i++){
-//    	for (int j=0; j<32; j++){
-//    		for (int k=0; k<28; k++){
-//    			printf("%f ", a[i * 32 * 28 + j * 28 + k]);
-//    		}
-//    		printf("\n");
-//    	}
-//    	printf("\n");
-//    }
-
-//	uint *nn = (uint*)malloc(sizeof(uint) * data.col);
-//	uint *mm = (uint*)malloc(sizeof(uint) * data.col);
-//	for (int i=0; i<20000; i++){
-//		nn[i] = indices[i]/28;
-//		mm[i] = indices[i] - 28 * nn[i];
-//	}
-//
-//	for (int i=0; i<data.col; i++)
-//	{
-//		im[ nn[i] * 28 + mm[i]] = labels[i] + 1;
-//	}
-
-//	for (int i=0; i<28; i++){
-//		printf("[");
-//		for (int j=0; j<28; j++){
-//			printf("%2d ", ret[i * 28 + j]);
-//		}
-//		printf("]\n");
-//	}
-//    for (int i=0; i<32;i++){
-//    	for(int j=0; j<28; j++){
-//    		printf("%f ", a[i * 28 + j]);
-//    	}
-//    	printf("\n");
-//    }
-//	float counter = 0;
-//    for (int i=0; i<1; i++){
-//    	for (int j=0; j<32; j++){
-//    		for (int k =0 ; k<28; k++){
-//    			printf("%f ", a[896 *  i + j * 28 + k]);
-//    			counter += a[896 * i + j * 28 + k];
-//    		}
-//    		printf("\n");
-//    	}
-//    	printf("\n");
-//    }
-//    printf("counter %f\n", counter);
-//	int count[32 * 28];
-//
-//	memset(count, 0, sizeof(int) * 32 * 28);
-//    float b[16 * 32 * 28];
-//    memset(b, 0, sizeof(float) * 16 * 32 *28);
-//
-//	for (int j = 0; j < 32; j++){
-//		int _min = max(j - 8., 0.);
-//		int _max = min(j+9., 32.);
-//		for (int slab=0; slab<28; slab++){
-//			for (int i=0; i<16; i++){  //vector size...
-//				for (int k= _min; k<_max; k++){
-//					b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
-//				}
-//			}
-//			for (int k= _min; k<_max; k++){
-//				count[j * 28 + slab] += ww_count[k * 28 + slab];
-//			}
-//		}
-//    }
-//	memset(a, 0, sizeof(float) * 28 *32 * 16);
-//	memset(ww_count, 0, sizeof(int) * 28 * 32);
-//	for (int slab = 0; slab < 28; slab++){
-//		int _min = max(slab - 8., 0.);
-//		int _max = min(slab+9., 28.);
-//		for (int j=0; j<32; j++){
-//			for (int i=0; i<16; i++){  //vector size...
-//				for (int k= _min; k<_max; k++){
-//				 	a[i * 896 + j * 28 + slab]  += b[i * 896 + j * 28 + k];
-//				}
-//			}
-//			for (int k= _min; k<_max; k++){
-//				ww_count[j * 28 + slab] += count[j * 28 + k];
-//			}
-//		}
-//    }
 
 	for (int i=0; i<16; i++){
 		for (int j=0; j<32; j++){
@@ -405,8 +330,10 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 			printf("%d ", ww_count[i * 28 + j]);
 		}printf("\n");
 	}
+
+	host_r++;
+	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));
+	host_beta[0] = max(0., (host_beta[1] - host_r) / 1.5);
+
    	return EXIT_SUCCESS;
 }
-
-
-
