@@ -1,6 +1,10 @@
 #define IDX2C(i,j,ld) (((j)*(ld))+(i))
 #define DEBUG_PRINT 0
 #define IDX(i,j,ld) (((i)*(ld)) + (j))
+#define IMAGE_M 28
+#define IMAGE_N 32
+#define IMAGE_MxN IMAGE_M * IMAGE_N
+#define VECTOR_SIZE 16
 
 //yes I know this isn't strict C, but I'm not that fussy...
 #include <string>

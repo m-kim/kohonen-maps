@@ -153,11 +153,11 @@ static void normalize(MATRIXf mat)
 	for (int i=0;i<mat.col; i++){
 		sum = 0;
 		for (int j=0; j<mat.row; j++){
-			mat.data[i * mat.row + j] = fabs(mat.data[i * mat.row + j]);
-			sum += mat.data[i * mat.row + j];
+			mat.data[i + mat.col * j] = fabs(mat.data[i + mat.col * j]);
+			sum += mat.data[i + mat.col * j];
 		}
 		for (int j=0;j<mat.row; j++){
-			mat.data[i * mat.row + j] /= sum;
+			mat.data[i + mat.col * j] /= sum;
 		}
 	}
 }
@@ -341,31 +341,31 @@ int main( int argc, char **argv )
 //	pca(mat, pc1, pc2);
 
 
-//	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
-
-	std::ifstream file;
-	char filename[100];
-	sprintf(filename, "%s/%s",SRC_PATH,"data");
-	printf("%s\n",filename);
-	file.open(filename, std::ifstream::in);
-	std::string str;
-	memset(x.data, 0, sizeof(float) * 16 * 20000);
-	int row = 0;
-	int col = 0;
-	while (file.good()){
-		//getline will retrieve 20000 numbers...
-		getline(file, str);
-		char *tok = strtok((char*)str.c_str(), " ");
-		while (tok != NULL){
-			//16 rows by 20000 cols in the file
-			x.data[row * x.col + col] = atof(tok);
-			tok = strtok(NULL, " ");
-			col++;
-		}
-		col = 0;
-		row++;
-	}
-	file.close();
+	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+	normalize(x);
+//	std::ifstream file;
+//	char filename[100];
+//	sprintf(filename, "%s/%s",SRC_PATH,"data");
+//	printf("%s\n",filename);
+//	file.open(filename, std::ifstream::in);
+//	std::string str;
+//	memset(x.data, 0, sizeof(float) * 16 * 20000);
+//	int row = 0;
+//	int col = 0;
+//	while (file.good()){
+//		//getline will retrieve 20000 numbers...
+//		getline(file, str);
+//		char *tok = strtok((char*)str.c_str(), " ");
+//		while (tok != NULL){
+//			//16 rows by 20000 cols in the file
+//			x.data[row * x.col + col] = atof(tok);
+//			tok = strtok(NULL, " ");
+//			col++;
+//		}
+//		col = 0;
+//		row++;
+//	}
+//	file.close();
 
 	pca(x, pc1, pc2);
 

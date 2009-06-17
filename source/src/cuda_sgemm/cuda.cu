@@ -288,12 +288,15 @@ extern "C" int runCuda(unsigned int *device_pbo)
     cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col);
     calc_ww2<<<7,128>>>(device_ww,device_ww2.data);
     cudaMemcpy(a,device_ww2.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
+
+#if DEBUG_PRINT
     for (int i=0; i<IMAGE_N; i++){
     	for (int j=0; j<IMAGE_M; j++){
     		printf("%f ", a[i * IMAGE_M + j]);
     	}
     	printf("\n");
     }
+#endif
 
     cudaThreadSynchronize();
  	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
@@ -336,25 +339,21 @@ extern "C" int runCuda(unsigned int *device_pbo)
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
 
 	cudaThreadSynchronize();
-    cutStartTimer(timer);
-
-    cutilSafeCall(cudaMemcpy(a, device_ww.data, sizeof(float) * IMAGE_MxN * 16, cudaMemcpyDeviceToHost));
-
-	int ww_count[device_ww.row * device_ww.col];
-
-	cutilSafeCall(cudaMemcpy(ww_count, device_ww_count.data, sizeof(int) * device_ww.row * device_ww.col, cudaMemcpyDeviceToHost));
-
-    cutStopTimer(timer);
-    time = cutGetTimerValue(timer);
-    total_time += time;
+//    cutStartTimer(timer);
+//    cutilSafeCall(cudaMemcpy(a, device_ww.data, sizeof(float) * IMAGE_MxN * 16, cudaMemcpyDeviceToHost));
+//	int ww_count[device_ww.row * device_ww.col];
+//	cutilSafeCall(cudaMemcpy(ww_count, device_ww_count.data, sizeof(int) * device_ww.row * device_ww.col, cudaMemcpyDeviceToHost));
+//    cutStopTimer(timer);
+//    time = cutGetTimerValue(timer);
+//    total_time += time;
+//    printf("Transfer back time %f\n\n", time);
 
     block = dim3(16,16);
     grid = dim3(2,2);
     expandImage<<<grid,block>>>(device_pbo, device_ret.data);
-    printf("Transfer back time %f\n\n", time);
 
     printf("Total Time: %f\n\n", total_time);
-
+#if DEBUG_PRINT
 	for (int i=0; i<16; i++){
 		for (int j=0; j<IMAGE_N; j++){
 			for (int k=0; k<IMAGE_M; k++){
@@ -370,7 +369,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
 			printf("%d ", ww_count[i * IMAGE_M + j]);
 		}printf("\n");
 	}
-
+#endif
 	host_r++;
 	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));
 	host_beta[0] = max(0., (host_beta[1] - host_r) / 1.5);
