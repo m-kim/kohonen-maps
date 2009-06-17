@@ -17,13 +17,13 @@ int host_r = -1, host_T = 20, host_beta[2];
 __constant__ uint constant_color[256];
 __constant__ int beta[2];
 
-__global__ void calc_ww2(const float *ww, float *ww2)
+__global__ void calc_ww2(const MATRIXf ww, float *ww2)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-	for (int j=0; j<16; j++){
+	for (int j=0; j<VECTOR_SIZE; j++){
 		//this shouldn't be backwards...*sigh*
-		ww2[i] += pow(ww[j * 896 + i],2);
+		ww2[i] += pow(ww.data[j * ww.row + i],2);
 	}
 
 }
@@ -32,17 +32,17 @@ __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, 
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
 	int slab = threadIdx.y + blockDim.y * blockIdx.y;
 
-	if (slab < 28){
+	if (slab < IMAGE_M){
 		int _min = max(j - _beta, 0);
-		int _max = min(j + _beta + 1, 32);
+		int _max = min(j + _beta + 1, IMAGE_N);
 
-		for (int i=0; i<16; i++){  //vector size...
+		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
 			for (int k= _min; k<_max; k++){
-				b[i * 896 + j * 28 + slab]  += a[i * 896 + k * 28 + slab];
+				b[i * IMAGE_MxN + j * IMAGE_M + slab]  += a[i * IMAGE_MxN + k * IMAGE_M + slab];
 			}
 		}
 		for (int k= _min; k<_max; k++){
-			count[j * 28 + slab] += ww_count[k * 28 + slab];
+			count[j * IMAGE_M + slab] += ww_count[k * IMAGE_M + slab];
 		}
 	}
 }
@@ -51,28 +51,41 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
 {
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
 	int slab = threadIdx.y + blockDim.y * blockIdx.y;
-
+	int index = j * IMAGE_M + slab;
+	__shared__ float s_ww[IMAGE_N * IMAGE_M];
 	int _min = max(slab - _beta, 0);
-	int _max = min(slab + _beta + 1, 28);
+	int _max = min(slab + _beta + 1, IMAGE_M);
 
-	if (slab < 28){
-		int index = j * 28 + slab;
+	if (slab < IMAGE_M){
 
-		for (int i=0; i<16; i++){  //vector size...
+		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
 			for (int k= _min; k<_max; k++){
-				a[i * 896 + index]  += b[i * 896 + j * 28 + k];
+				a[i * IMAGE_MxN + index]  += b[i * IMAGE_MxN + j * IMAGE_M + k];
 			}
 		}
 		for (int k= _min; k<_max; k++){
-			ww_count[index] += count[j * 28 + k];
+			ww_count[index] += count[j * IMAGE_M + k];
 		}
 
-		for (int i=0; i<16; i++){
-			a[ i * 896 + index] = a[ i * 896 + index] / (ww_count[index] + EPSILON);
+		for (int i=0; i<VECTOR_SIZE; i++){
+			if (ww_count[index] < 0)
+				a[i * IMAGE_MxN + index] = 0;
+			else
+				a[ i * IMAGE_MxN + index] = a[ i * IMAGE_MxN + index] / (ww_count[index] + EPSILON);
+        	ww[i * IMAGE_MxN + index] = abs(ww[i * IMAGE_MxN + index]  +_alpha * (a[i * IMAGE_MxN + index] - ww[i * IMAGE_MxN + index]));
 		}
+		for (int i=0; i<VECTOR_SIZE; i++){
+	    	s_ww[index] += ww[i * IMAGE_MxN + index];
+		}
+	}
+	__syncthreads();
+	if (slab < IMAGE_M){
+		for (int i=0; i<VECTOR_SIZE; i++){
+			if (s_ww[index] > 0)
+				ww[i * IMAGE_MxN + index] = ww[i * IMAGE_MxN + index] / (s_ww[index]);
+			else
+				ww[i * IMAGE_MxN + index] = 0;
 
-		for (int i=0; i<16; i++){
-        	ww[i * 896 + index] = abs(ww[i * 896 + index]  +_alpha * (a[i * 896 + index] - ww[i * 896 + index]));
 		}
 	}
 }
@@ -98,7 +111,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 
 	// 256->32
 	for (int j=1; j < coalesce_num; j++){
-		if (threadIdx.x + blocksize * j < 896){
+		if (threadIdx.x + blocksize * j < IMAGE_MxN){
 			argmax[threadIdx.x] = (s_vec[argmax[threadIdx.x]] > s_vec[argmax[j * blocksize + threadIdx.x]])?
 						argmax[threadIdx.x]:argmax[j * blocksize+threadIdx.x];
 		}
@@ -118,18 +131,18 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 	indices[index] = argmax[0];
 
 	//take the vector from data and save it to ww_sum
-	if (threadIdx.x < 16)
-		ww_sum[ argmax[0] + threadIdx.x * 896] += data[index * 16 + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
+	if (threadIdx.x < VECTOR_SIZE)
+		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
 {
 	uint i = threadIdx.x + blockDim.x * blockIdx.x;
-	__shared__ int nn[32];
-	__shared__ int mm[32];
-	nn[threadIdx.x] = indices[i] / 28;
-	mm[threadIdx.x] = indices[i] - 28 * nn[threadIdx.x];
-	im[ nn[threadIdx.x] * 28 + mm[threadIdx.x]] = labels[i] + 1;
+	__shared__ int nn[IMAGE_N];
+	__shared__ int mm[IMAGE_N];
+	nn[threadIdx.x] = indices[i] / IMAGE_M;
+	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
+	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i] + 1;
 }
 
 __global__ void expandImage(uint *im, const uint *ret)
@@ -140,7 +153,7 @@ __global__ void expandImage(uint *im, const uint *ret)
 
 	for (int i=0; i<16; i++){
 		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * 28 + x]] * ret[y * 28 + x];
+			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]] * ret[y * IMAGE_M + x];
 		}
 	}
 }
@@ -183,13 +196,13 @@ extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int 
 
 	device_ww_count.row = ww.row;
 	device_ww_count.col = ww.col;
-	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * ww.row));
-    cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * ww.row));
+	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * device_ww_count.row));
+    cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
 
 	device_ww_count2.row = ww.row;
 	device_ww_count2.col = ww.col;
-	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * ww.row));
-    cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * ww.row));
+	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * device_ww_count2.row));
+    cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
 
     device_indices.row = ww.row;
     device_indices.col = 1;
@@ -214,11 +227,10 @@ extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int 
     	}
     }
 
-	device_ww2.row = 32;
-	device_ww2.col = 28;
+	device_ww2.row = IMAGE_N;
+	device_ww2.col = IMAGE_M;
     printf("setup matrix ww2 %d %d\n", device_ww2.row, device_ww2.col);
     cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
-	//cutilSafeCall(cudaMemcpy(device_ww2.data, ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyHostToDevice));
 	cutilSafeCall(cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col));
 
 
@@ -229,9 +241,9 @@ extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int 
     cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col ));
 
 
-    printf("setup matrix scractch %d %d\n", 896, 16);
-    cutilSafeCall(cudaMalloc((void**)&device_scratch.data, sizeof(float) *  896 * 16));
-    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * 896*16));
+    printf("setup matrix scractch %d %d\n", IMAGE_MxN, VECTOR_SIZE);
+    cutilSafeCall(cudaMalloc((void**)&device_scratch.data, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
+    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
 
     device_save.row = device_ww2.row;
     device_save.col = device_ww2.col;
@@ -261,7 +273,7 @@ extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int 
 
 }
 
-extern "C" int runCudasGemm(unsigned int *device_pbo)
+extern "C" int runCuda(unsigned int *device_pbo)
 {
 	unsigned int timer;
     cutCreateTimer(&timer);
@@ -270,15 +282,26 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     total_time = 0;
     cutResetTimer(timer);
     cutStartTimer(timer);
+    cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
+    cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count.row));
+
     cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col);
-    calc_ww2<<<7,128>>>(device_ww.data,device_ww2.data);
+    calc_ww2<<<7,128>>>(device_ww,device_ww2.data);
+    cudaMemcpy(a,device_ww2.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
+    for (int i=0; i<IMAGE_N; i++){
+    	for (int j=0; j<IMAGE_M; j++){
+    		printf("%f ", a[i * IMAGE_M + j]);
+    	}
+    	printf("\n");
+    }
+
     cudaThreadSynchronize();
  	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<20000; i++){
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
-		cublasSgemv('N', 896,16, 2, device_ww.data, 896,
-				device_data.data + i * 16,
+		cublasSgemv('N', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
+				device_data.data + i * device_ww.col,
 				1,
 				-1,
 				device_ww2.data,
@@ -307,7 +330,7 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     cutResetTimer(timer);
     dim3 block(16,16);
     dim3 grid(2, 2);
-    cudaMemset(device_scratch.data, 0, sizeof(float) * 896 * 16);
+    cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * 16);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
@@ -315,7 +338,7 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
 	cudaThreadSynchronize();
     cutStartTimer(timer);
 
-    cutilSafeCall(cudaMemcpy(a, device_ww.data, sizeof(float) * 896 * 16, cudaMemcpyDeviceToHost));
+    cutilSafeCall(cudaMemcpy(a, device_ww.data, sizeof(float) * IMAGE_MxN * 16, cudaMemcpyDeviceToHost));
 
 	int ww_count[device_ww.row * device_ww.col];
 
@@ -333,18 +356,18 @@ extern "C" int runCudasGemm(unsigned int *device_pbo)
     printf("Total Time: %f\n\n", total_time);
 
 	for (int i=0; i<16; i++){
-		for (int j=0; j<32; j++){
-			for (int k=0; k<28; k++){
-				printf("%f ", a[i * 896 + j * 28 + k]);
+		for (int j=0; j<IMAGE_N; j++){
+			for (int k=0; k<IMAGE_M; k++){
+				printf("%f ", a[i * IMAGE_MxN + j * IMAGE_M + k]);
 			}
 			printf("\n");
 		}
 		printf("\n");
 	}
 
-	for (int i=0; i<32; i++){
-		for (int j=0; j<28;j++){
-			printf("%d ", ww_count[i * 28 + j]);
+	for (int i=0; i<IMAGE_N; i++){
+		for (int j=0; j<IMAGE_M;j++){
+			printf("%d ", ww_count[i * IMAGE_M + j]);
 		}printf("\n");
 	}
 

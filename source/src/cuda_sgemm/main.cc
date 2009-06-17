@@ -16,15 +16,13 @@
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int *device_pbo);
-extern "C" int runCudasGemm(unsigned int *device_ret);
+extern "C" int runCuda(unsigned int *device_pbo);
 extern "C" void cleanup();
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
         float* A, const int* lda, float* S, float* U, const int* ldu,
         float* VT, const int* ldvt, float* work,const int* lwork, const
         int* info);
 
-int M ;
-int N ;
 int expansion = 4;
 float bin1, bin2;
 uchar4 *d_output;
@@ -224,7 +222,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
     switch(key) {
     case 'n':
     case 'N':
-        runCudasGemm((unsigned int*)d_output);
+        runCuda((unsigned int*)d_output);
 
     	break;
         case 27:
@@ -317,14 +315,7 @@ int main( int argc, char **argv )
 {
 
 	initGL(argc,argv);
-	if (argc > 1){
-		M = atoi(argv[1]);
-		N = atoi(argv[1]);
-	}
-	else{
-		M = 28;
-		N = 32;
-	}
+
 	MATRIXf pc1;
 	pc1.data = (float*)malloc(sizeof(float) * 16);
 	pc1.row = 16;
@@ -378,11 +369,6 @@ int main( int argc, char **argv )
 		row++;
 	}
 	file.close();
-
-
-
-
-
 
 	//pca(x, pc1, pc2);
 
@@ -445,11 +431,11 @@ int main( int argc, char **argv )
 	//ummm...this is only if M is "None"
 	//M = int(N * std2 / std1);
 
-	bin1 = 2 * expansion * std1 / N;
-	bin2 = 2 * expansion * std2 / M;
+	bin1 = 2 * expansion * std1 / IMAGE_N;
+	bin2 = 2 * expansion * std2 / IMAGE_M;
 
 	printf("Std dev: %f %f\n", std1,std2);
-	printf("scale %f %f %d %d\n", bin1, bin2, M, N);
+	printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_M, IMAGE_N);
 
 
 
@@ -466,62 +452,20 @@ int main( int argc, char **argv )
 	}
 
 	MATRIXf ww;
-	ww.data = (float*)malloc(sizeof(float) * M * N * 16);
-	ww.row = N * M;
+	ww.data = (float*)malloc(sizeof(float) * IMAGE_M * IMAGE_N * 16);
+	ww.row = IMAGE_M * IMAGE_N;
 	ww.col = 16;
 
-	MATRIXf ww2;
-	ww2.data = (float*)malloc(sizeof(float) * N *M);
-	ww2.row = N;
-	ww2.col = M;
 
 	//this doesn't work...
 	//remember, mean0 = dm
-//	for (int i=0; i<N; i++){
-//		for (int j=0; j<M; j++){
-//			ww2.data[i * M + j] = 0;
-//			for (int k=0; k<16; k++){
-//				ww.data[IDX(i,j, M) + k] = dm[k] + b1[k] * (i - N/2) + b2[k]*(j-M/2);
-//				//musical chairs
-//				ww2.data[i * M + j] += pow(ww.data[IDX(i,j,M) + k], 2);
-//			}
-//		}
-//	}
-
-	memset(filename,0,100);
-	sprintf(filename, "%s/%s",SRC_PATH,"ww");
-	printf("%s\n",filename);
-	std::ifstream ww_file;
-	ww_file.open(filename, std::ifstream::in);
-	row = 0;
-	col = 0;
-	while (ww_file.good()){
-		getline(ww_file, str);
-		char *tok = strtok((char*)str.c_str(), " ");
-		while (tok != NULL){
-
-			//16 rows by 20000 cols in the file
-			//row access
-			ww.data[col * ww.col + row] = atof(tok);
-			tok = strtok(NULL, " ");
-			col++;
-		}
-		col = 0;
-		row++;
-	}
-	ww_file.close();
-
-
-	for (int i=0; i<896; i++){
-		for (int j=0; j<16; j++){
-			//this shouldn't be backwards...*sigh*
-			ww2.data[i] += pow(ww.data[i * 16 + j],2);
+	for (int i=0; i<IMAGE_N; i++){
+		for (int j=0; j<IMAGE_M; j++){
+			for (int k=0; k<16; k++){
+				ww.data[k + (i * IMAGE_M + j) * 16 ] = dm[k] + b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2);
+			}
 		}
 	}
-
-/*************************************************************************************
- * musical_chairs (cont)
- */
 
 	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
 	for (int i=0; i< 20; i++){
@@ -540,7 +484,7 @@ int main( int argc, char **argv )
 	//M = 16
 	//N = 896 (32 * 28)
 	setupCuda(ww,x, labels,(unsigned int*)d_output);
-    runCudasGemm((unsigned int*)d_output);
+    runCuda((unsigned int*)d_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
@@ -548,5 +492,5 @@ int main( int argc, char **argv )
 
 
 	cleanup();
-	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww.data,ww2.data,labels;
+	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww.data,labels;
 };
