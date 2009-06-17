@@ -15,7 +15,7 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(MATRIXf ww, MATRIXf ww2, MATRIXf data, uint *labels, unsigned int *device_pbo);
+extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int *device_pbo);
 extern "C" int runCudasGemm(unsigned int *device_ret);
 extern "C" void cleanup();
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
@@ -27,6 +27,7 @@ int M ;
 int N ;
 int expansion = 4;
 float bin1, bin2;
+uchar4 *d_output;
 
 GLuint pbo        = 0;          // OpenGL pixel buffer object
 GLuint displayTex = 0;
@@ -221,6 +222,11 @@ void display()
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
     switch(key) {
+    case 'n':
+    case 'N':
+        runCudasGemm((unsigned int*)d_output);
+
+    	break;
         case 27:
             exit(0);
             break;
@@ -526,14 +532,14 @@ int main( int argc, char **argv )
 
     // map PBO to get CUDA device pointer
 	initGLBuffers();
-    uchar4 *d_output;
+
     cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
 
 	//chunk
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
-	setupCuda(ww,ww2,x, labels,(unsigned int*)d_output);
+	setupCuda(ww,x, labels,(unsigned int*)d_output);
     runCudasGemm((unsigned int*)d_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
