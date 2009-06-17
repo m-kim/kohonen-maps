@@ -68,7 +68,7 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
 		}
 
 		for (int i=0; i<VECTOR_SIZE; i++){
-			if (ww_count[index] < 0)
+			if (ww_count[index] == 0)
 				a[i * IMAGE_MxN + index] = 0;
 			else
 				a[ i * IMAGE_MxN + index] = a[ i * IMAGE_MxN + index] / (ww_count[index] + EPSILON);
@@ -262,15 +262,13 @@ extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int 
     printf("setup matrix data %d %d\n", device_data.row, device_data.col);
     cutilSafeCall(cudaMalloc((void**)&device_data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
-    for (int i=0; i<data.row; i++){
-    	for (int j=0; j<data.col; j++){
-    		cutilSafeCall(cudaMemcpy(
-    				device_data.data  + (j * data.row + i),
-    				data.data + (i * data.col + j), sizeof(float), cudaMemcpyHostToDevice));
-    	}
-    }
-
-
+//    for (int i=0; i<data.row; i++){
+//    	for (int j=0; j<data.col; j++){
+//    		cutilSafeCall(cudaMemcpy(
+//    				device_data.data  + (j * data.row + i),
+//    				data.data + (i * data.col + j), sizeof(float), cudaMemcpyHostToDevice));
+//    	}
+//    }
 }
 
 extern "C" int runCuda(unsigned int *device_pbo)

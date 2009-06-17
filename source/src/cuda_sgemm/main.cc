@@ -62,7 +62,7 @@ float * mean(const MATRIXf dd)
 	for(int i=0; i<dd.row;i++){
 		ret[i] = 0.0;
 		for(int j=0; j<dd.col; j++){
-			ret[i] += dd.data[i * dd.col + j];
+			ret[i] += dd.data[i + dd.row * j];
 		}
 		ret[i] = ret[i] / dd.col;
 	}
@@ -73,11 +73,11 @@ void cov(const MATRIXf dd, float *covariance)
 	float *mean_val = mean(dd);
 	for(int i=0; i<dd.row; i++){
 		for (int j=0; j<dd.row;j++){
-			covariance[i * dd.row + j] = 0;
+			covariance[i + dd.row * j] = 0;
 			for (int k=0; k < dd.col; k++){
-				covariance[i * dd.row + j] += (dd.data[i * dd.col + k] - mean_val[i]) * (dd.data[j * dd.col + k] - mean_val[j]);
+				covariance[i + dd.row * j] += (dd.data[i + dd.row * k] - mean_val[i]) * (dd.data[j + dd.row * k] - mean_val[j]);
 			}
-			covariance[i * dd.row + j] /= (dd.col -  1);
+			covariance[i + dd.row * j] /= (dd.col -  1);
 #if DEBUG_PRINT
 			printf("%f ", covariance[i * dd.row + j]);
 #endif
@@ -109,7 +109,7 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 	int ldu = x.row;
 	int ldv = x.row;
 	int info;
-	int lwork = 804;
+	int lwork = 201;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
@@ -153,11 +153,11 @@ static void normalize(MATRIXf mat)
 	for (int i=0;i<mat.col; i++){
 		sum = 0;
 		for (int j=0; j<mat.row; j++){
-			mat.data[i + mat.col * j] = fabs(mat.data[i + mat.col * j]);
-			sum += mat.data[i + mat.col * j];
+			mat.data[i * mat.row + j] = fabs(mat.data[i * mat.row + j]);
+			sum += mat.data[i * mat.row + j];
 		}
 		for (int j=0;j<mat.row; j++){
-			mat.data[i + mat.col * j] /= sum;
+			mat.data[i * mat.row + j] /= sum;
 		}
 	}
 }
@@ -173,7 +173,7 @@ int make_data(int n,int S, int F,float weight, MATRIXf pc1, MATRIXf pc2, MATRIXf
 		}
 		for (int j=0; j<n; j++){
 			for (int cv_f = 0; cv_f < F; cv_f++){
-				x.data[(i * n + j) + cv_f * n * S] = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
+				x.data[(i * n + j)*F + cv_f] = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
 			}
 		}
 	}
@@ -366,8 +366,8 @@ int main( int argc, char **argv )
 //		row++;
 //	}
 //	file.close();
+	pca(x, pc1,pc2);
 
-	pca(x, pc1, pc2);
 
 	//mean0 == dm
 	//dm should be shape = (16,)
@@ -378,7 +378,7 @@ int main( int argc, char **argv )
 	for(int i=0; i<x.row;i++){
 		dm[i] = 0.0;
 		for(int j=0; j<x.col; j++){
-			dm[i] += x.data[i * x.col + j];
+			dm[i] += x.data[i + x.row * j];
 		}
 		dm[i] = dm[i] / x.col;
 	}
@@ -400,7 +400,7 @@ int main( int argc, char **argv )
 
 	for (int i=0; i<data_dm.col; i++){
 		for (int j=0; j<data_dm.row; j++){
-			data_dm.data[j * data_dm.col + i] = x.data[j * x.col + i] - dm[j];
+			data_dm.data[j * data_dm.col + i] = x.data[j + x.row * i] - dm[j];
 		}
 		pd1.data[i] = dot(pc1, data_dm,i);
 		pd2.data[i] = dot(pc2, data_dm,i);
