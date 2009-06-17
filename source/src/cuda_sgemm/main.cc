@@ -78,13 +78,13 @@ void cov(const MATRIXf dd, float *covariance)
 				covariance[i * dd.row + j] += (dd.data[i * dd.col + k] - mean_val[i]) * (dd.data[j * dd.col + k] - mean_val[j]);
 			}
 			covariance[i * dd.row + j] /= (dd.col -  1);
-//#if DEBUG_PRINT
+#if DEBUG_PRINT
 			printf("%f ", covariance[i * dd.row + j]);
-//#endif
+#endif
 		}
-//#if DEBUG_PRINT
+#if DEBUG_PRINT
 		printf("\n");
-//#endif
+#endif
 	}
 
 	delete mean_val;
@@ -126,8 +126,8 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 
 
 	for (int i=0; i<x.row; i++){
-		pca1.data[i] = vv[i];
-		pca2.data[1] = vv[i + x.row];
+		pca1.data[i] = vv[i * x.row];
+		pca2.data[i] = vv[i * x.row + 1];
 	}
 //	memcpy(pca1, &vv[0], sizeof(float)* mat_m);
 //	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
@@ -162,6 +162,7 @@ static void normalize(MATRIXf mat)
 	}
 }
 
+//N == 10000, S == 20
 int make_data(int n,int S, int F,float weight, MATRIXf pc1, MATRIXf pc2, MATRIXf x)
 {
 
@@ -172,10 +173,8 @@ int make_data(int n,int S, int F,float weight, MATRIXf pc1, MATRIXf pc2, MATRIXf
 		}
 		for (int j=0; j<n; j++){
 			for (int cv_f = 0; cv_f < F; cv_f++){
-				x.data[(i * n + j) * F + cv_f] = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
-				printf("%f ", x.data[(i * n + j) * F + cv_f]);
+				x.data[(i * n + j) + cv_f * n * S] = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
 			}
-			printf("\n");
 		}
 	}
 
@@ -342,9 +341,7 @@ int main( int argc, char **argv )
 //	pca(mat, pc1, pc2);
 
 
-
 //	make_data(1000, 20, 16, 3.0, pc1, pc2, x);
-	//normalize(x);
 
 	std::ifstream file;
 	char filename[100];
@@ -370,23 +367,12 @@ int main( int argc, char **argv )
 	}
 	file.close();
 
-	//pca(x, pc1, pc2);
-
-	float tmp[] ={-0.36220333, -0.35487528, -0.19582513,  0.01291018,  0.25750163,  0.15277131
-			 ,-0.37524103  ,0.16958821,  0.14361155, -0.2686145,   0.33782259,  0.00555586
-			  ,0.29207888,  0.27095362,  0.15164405, -0.2376786};
-	memcpy(pc1.data, tmp, sizeof(float) * 16);
-
-	float tmp2[] = {0.00260173,  0.02293971, -0.47482202,  0.09716536,  0.00760736,  0.30567733
-	  ,0.04289583, -0.09414034,  0.18733382, -0.01131097, -0.39201071,  0.52470409
-	  ,0.29333093, -0.26513936, -0.19181659, -0.05501617};
-	memcpy(pc2.data, tmp2, sizeof(float) * 16);
+	pca(x, pc1, pc2);
 
 	//mean0 == dm
 	//dm should be shape = (16,)
 	//dm is correct compared to python code...
 	//it needed a reverse index
-
 	float *dm = (float*)malloc(sizeof(float) * x.row);
 
 	for(int i=0; i<x.row;i++){
