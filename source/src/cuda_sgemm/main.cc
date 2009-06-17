@@ -109,7 +109,7 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 	int ldu = x.row;
 	int ldv = x.row;
 	int info;
-	int lwork;
+	int lwork = 201;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
@@ -316,18 +316,18 @@ int main( int argc, char **argv )
 	initGL(argc,argv);
 
 	MATRIXf pc1;
-	pc1.data = (float*)malloc(sizeof(float) * 16);
-	pc1.row = 16;
+	pc1.data = (float*)malloc(sizeof(float) * VECTOR_SIZE);
+	pc1.row = VECTOR_SIZE;
 	pc1.col = 1;
 
 	MATRIXf pc2;
-	pc2.data = (float*)malloc(sizeof(float) * 16);
-	pc2.row = 16;
+	pc2.data = (float*)malloc(sizeof(float) * VECTOR_SIZE);
+	pc2.row = VECTOR_SIZE;
 	pc2.col = 1;
 
 	MATRIXf x;
-	x.data = (float*)malloc(sizeof(float) * 20000*16);
-	x.row = 16;
+	x.data = (float*)malloc(sizeof(float) * 20000*VECTOR_SIZE);
+	x.row = VECTOR_SIZE;
 	x.col = 20000;
 
 //	float dd[] = {.69, -1.31, .39, .09, 1.29,.49,.19,-.81,-.31,-.71
@@ -341,7 +341,7 @@ int main( int argc, char **argv )
 //	pca(mat, pc1, pc2);
 
 
-//	make_data(1000, 20, 16, 3.0, pc1, pc2, x);
+//	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
 
 	std::ifstream file;
 	char filename[100];
@@ -394,8 +394,8 @@ int main( int argc, char **argv )
 	pd2.col = 1;
 
 	MATRIXf data_dm;
-	data_dm.data = (float*)malloc(sizeof(float) * 20000 * 16);
-	data_dm.row = 16;
+	data_dm.data = (float*)malloc(sizeof(float) * 20000 * VECTOR_SIZE);
+	data_dm.row = VECTOR_SIZE;
 	data_dm.col = 20000;
 
 	for (int i=0; i<data_dm.col; i++){
@@ -430,25 +430,25 @@ int main( int argc, char **argv )
  * init_ww and
  * musical_chairs
  */
-	float *b1 = (float*)malloc(sizeof(float) * 16);
-	float *b2 = (float*)malloc(sizeof(float) * 16);
+	float *b1 = (float*)malloc(sizeof(float) * VECTOR_SIZE);
+	float *b2 = (float*)malloc(sizeof(float) * VECTOR_SIZE);
 	for (int i=0; i<pc1.row; i++){
 		b1[i] = pc1.data[i] * bin1;
 		b2[i] = pc2.data[i] * bin2;
 	}
 
 	MATRIXf ww;
-	ww.data = (float*)malloc(sizeof(float) * IMAGE_M * IMAGE_N * 16);
+	ww.data = (float*)malloc(sizeof(float) * IMAGE_M * IMAGE_N * VECTOR_SIZE);
 	ww.row = IMAGE_M * IMAGE_N;
-	ww.col = 16;
+	ww.col = VECTOR_SIZE;
 
 
 	//this doesn't work...
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_N; i++){
 		for (int j=0; j<IMAGE_M; j++){
-			for (int k=0; k<16; k++){
-				ww.data[k + (i * IMAGE_M + j) * 16 ] = dm[k] + b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2);
+			for (int k=0; k<VECTOR_SIZE; k++){
+				ww.data[k + (i * IMAGE_M + j) * VECTOR_SIZE ] = dm[k] + b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2);
 			}
 		}
 	}
