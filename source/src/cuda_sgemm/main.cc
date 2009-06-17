@@ -109,11 +109,11 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 	int ldu = x.row;
 	int ldv = x.row;
 	int info;
-	int lwork = 201;
+	int lwork = 804;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
-	float wk[201];
+	float wk[lwork];
 
 	sgesvd_(&JOBU, &JOBV,
 			&svd_N, &svd_M,
