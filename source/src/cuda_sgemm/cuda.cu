@@ -31,6 +31,7 @@ __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, 
 {
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
 	int slab = threadIdx.y + blockDim.y * blockIdx.y;
+	int index = j * IMAGE_M + slab;
 
 	if (slab < IMAGE_M){
 		int _min = max(j - _beta, 0);
@@ -38,11 +39,11 @@ __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, 
 
 		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
 			for (int k= _min; k<_max; k++){
-				b[i * IMAGE_MxN + j * IMAGE_M + slab]  += a[i * IMAGE_MxN + k * IMAGE_M + slab];
+				b[i * IMAGE_MxN + index]  += a[i * IMAGE_MxN + k * IMAGE_M + slab];
 			}
 		}
 		for (int k= _min; k<_max; k++){
-			count[j * IMAGE_M + slab] += ww_count[k * IMAGE_M + slab];
+			count[index] += ww_count[k * IMAGE_M + slab];
 		}
 	}
 }
@@ -277,6 +278,9 @@ extern "C" int runCuda(unsigned int *device_pbo)
     cutCreateTimer(&timer);
     double time,total_time;
 
+    dim3 block;
+    dim3 grid;
+
     total_time = 0;
     cutResetTimer(timer);
     cutStartTimer(timer);
@@ -284,7 +288,9 @@ extern "C" int runCuda(unsigned int *device_pbo)
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count.row));
 
     cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col);
-    calc_ww2<<<7,128>>>(device_ww,device_ww2.data);
+
+    //this is related to IMAGE_MXN
+    calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
     cudaMemcpy(a,device_ww2.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
 
 #if DEBUG_PRINT
@@ -329,9 +335,9 @@ extern "C" int runCuda(unsigned int *device_pbo)
     printf("Run time %f\n\n", time);
 
     cutResetTimer(timer);
-    dim3 block(16,16);
-    dim3 grid(2, 2);
-    cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * 16);
+    block = dim3(16,16);
+    grid = dim3(2, 2);
+    cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);

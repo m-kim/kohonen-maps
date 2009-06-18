@@ -96,6 +96,7 @@ void cov(const MATRIXf dd, float *covariance)
 //so, that needs to be taken into account...
 void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 {
+	printf("Entering PCA...\n");
 	//16 x 20000 means a 16x16 covariance matrix
 	float *cov_mat = (float*)malloc(sizeof(float) * x.row * x.row);
 
@@ -109,7 +110,9 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 	int ldu = x.row;
 	int ldv = x.row;
 	int info;
-	int lwork = 201;
+
+	//vector size of 16 then lwork = 201
+	int lwork = 200;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
@@ -129,6 +132,7 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 		pca1.data[i] = vv[i * x.row];
 		pca2.data[i] = vv[i * x.row + 1];
 	}
+	printf("PCA finished...\n");
 //	memcpy(pca1, &vv[0], sizeof(float)* mat_m);
 //	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
 
@@ -442,8 +446,6 @@ int main( int argc, char **argv )
 	ww.row = IMAGE_M * IMAGE_N;
 	ww.col = VECTOR_SIZE;
 
-
-	//this doesn't work...
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_N; i++){
 		for (int j=0; j<IMAGE_M; j++){
