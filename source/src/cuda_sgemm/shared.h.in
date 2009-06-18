@@ -6,6 +6,8 @@
 #define IMAGE_MxN IMAGE_M * IMAGE_N
 #define VECTOR_SIZE 16
 
+#define host_T 20
+
 //yes I know this isn't strict C, but I'm not that fussy...
 #include <string>
 

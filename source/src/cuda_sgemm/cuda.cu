@@ -12,7 +12,7 @@ float* a;
 unsigned int *ret, *indices;
 
 float host_alpha[2];
-int host_r = -1, host_T = 20, host_beta[2];
+int host_r = -1, host_beta[2];
 
 __constant__ uint constant_color[256];
 __constant__ int beta[2];
@@ -376,7 +376,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
 #endif
 	host_r++;
 	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));
-	host_beta[0] = max(0., (host_beta[1] - host_r) / 1.5);
+	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
 
    	return EXIT_SUCCESS;
 }

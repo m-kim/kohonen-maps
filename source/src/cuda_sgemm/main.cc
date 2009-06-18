@@ -112,7 +112,7 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 	int info;
 
 	//vector size of 16 then lwork = 201
-	int lwork = 200;
+	int lwork = 6400;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
@@ -464,15 +464,23 @@ int main( int argc, char **argv )
 
     // map PBO to get CUDA device pointer
 	initGLBuffers();
-
-    cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
+   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
 
 	//chunk
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
 	setupCuda(ww,x, labels,(unsigned int*)d_output);
-    runCuda((unsigned int*)d_output);
+//	unsigned int timer;
+//    cutCreateTimer(&timer);
+//    double time;
+//    cutResetTimer(timer);
+//    cutStartTimer(timer);
+//	for (int i=0; i<host_T; i++)
+	    runCuda((unsigned int*)d_output);
+//    cutStopTimer(timer);
+//    time = cutGetTimerValue(timer);
+//    printf("Run time %f\n\n", time);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
