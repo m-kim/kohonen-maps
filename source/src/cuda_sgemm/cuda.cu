@@ -6,8 +6,8 @@
 #define REDUCE_BLOCKSIZE 256
 #define LOG2_REDUCE_BLOCKSIZE 8
 
-MATRIXf device_ww, device_data, device_ww2, device_save, device_sum, device_scratch;
-MATRIXu device_labels, device_indices, device_ww_count, device_ret,device_ww_count2;
+MATRIX<MATRIX_TYPE> device_ww, device_data, device_ww2, device_save, device_sum, device_scratch;
+MATRIX<unsigned int> device_labels, device_indices, device_ww_count, device_ret,device_ww_count2;
 float* a;
 unsigned int *ret, *indices;
 
@@ -17,7 +17,7 @@ int host_r = -1, host_beta[2];
 __constant__ uint constant_color[256];
 __constant__ int beta[2];
 
-__global__ void calc_ww2(const MATRIXf ww, float *ww2)
+__global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -168,7 +168,7 @@ extern "C" void cleanup()
 	cudaFree(device_labels.data);
 	delete a, ret, indices;
 }
-extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int *device_pbo)
+extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_pbo)
 {
     //setup color
 	unsigned char color[1024];

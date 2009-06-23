@@ -15,7 +15,7 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(MATRIXf ww,  MATRIXf data, uint *labels, unsigned int *device_pbo);
+extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_pbo);
 extern "C" int runCuda(unsigned int *device_pbo);
 extern "C" void cleanup();
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
@@ -31,7 +31,7 @@ GLuint pbo        = 0;          // OpenGL pixel buffer object
 GLuint displayTex = 0;
 unsigned int width = 512, height = 512;
 
-float stdDev(const MATRIXf &mat)
+float stdDev(const MATRIX<MATRIX_TYPE> &mat)
 {
 	float mean_x = 0;
 	for (int i=0; i<mat.row; i++){
@@ -45,7 +45,7 @@ float stdDev(const MATRIXf &mat)
 	return sqrt(sum / mat.row);
 }
 
-float dot(MATRIXf one, MATRIXf two, int col)
+float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
@@ -54,7 +54,7 @@ float dot(MATRIXf one, MATRIXf two, int col)
 	return sum;
 }
 
-float * mean(const MATRIXf dd)
+float * mean(const MATRIX<MATRIX_TYPE> dd)
 {
 	//get the mean value for each row...
 	float *ret = (float*)malloc(sizeof(float) * dd.row);
@@ -68,7 +68,7 @@ float * mean(const MATRIXf dd)
 	}
 	return ret;
 }
-void cov(const MATRIXf dd, float *covariance)
+void cov(const MATRIX<MATRIX_TYPE> dd, float *covariance)
 {
 	float *mean_val = mean(dd);
 	for(int i=0; i<dd.row; i++){
@@ -94,7 +94,7 @@ void cov(const MATRIXf dd, float *covariance)
 //the matrix pumped out of cov is singular
 //however, the matrix returned will be in column major order
 //so, that needs to be taken into account...
-void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
+void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pca2)
 {
 	printf("Entering PCA...\n");
 	//16 x 20000 means a 16x16 covariance matrix
@@ -151,7 +151,7 @@ void pca(MATRIXf x, MATRIXf pca1, MATRIXf pca2)
 
 //normalizes along the column
 //ie if its a 16 x 20000 matrix, it normalizes the 16 vector
-static void normalize(MATRIXf mat)
+static void normalize(MATRIX<MATRIX_TYPE> mat)
 {
 	float sum = 0;
 	for (int i=0;i<mat.col; i++){
@@ -167,7 +167,7 @@ static void normalize(MATRIXf mat)
 }
 
 //N == 10000, S == 20
-int make_data(int n,int S, int F,float weight, MATRIXf pc1, MATRIXf pc2, MATRIXf x)
+int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<MATRIX_TYPE> pc2, MATRIX<MATRIX_TYPE> x)
 {
 
 	float center_vec[F];
@@ -319,34 +319,21 @@ int main( int argc, char **argv )
 
 	initGL(argc,argv);
 
-	MATRIXf pc1;
+	MATRIX<float> pc1;
 	pc1.data = (float*)malloc(sizeof(float) * VECTOR_SIZE);
 	pc1.row = VECTOR_SIZE;
 	pc1.col = 1;
 
-	MATRIXf pc2;
+	MATRIX<float> pc2;
 	pc2.data = (float*)malloc(sizeof(float) * VECTOR_SIZE);
 	pc2.row = VECTOR_SIZE;
 	pc2.col = 1;
 
-	MATRIXf x;
+	MATRIX<MATRIX_TYPE> x;
 	x.data = (float*)malloc(sizeof(float) * 20000*VECTOR_SIZE);
 	x.row = VECTOR_SIZE;
 	x.col = 20000;
 
-//	float dd[] = {.69, -1.31, .39, .09, 1.29,.49,.19,-.81,-.31,-.71
-//				,.49, -1.21, .99, .29, 1.09, .79, -.31, -.81, -.31, -1.01
-//				,1.00000,  -1.50000,  -0.39000,   0.00000,  -0.09000,   1.40000,   0.39000,  -0.90000,  -0.31000,  -0.41000
-//				};
-//	MATRIX mat;
-//	mat.data= dd;
-//	mat.row = 3;
-//	mat.col = 10;
-//	pca(mat, pc1, pc2);
-
-
-	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
-	normalize(x);
 //	std::ifstream file;
 //	char filename[100];
 //	sprintf(filename, "%s/%s",SRC_PATH,"data");
@@ -370,6 +357,10 @@ int main( int argc, char **argv )
 //		row++;
 //	}
 //	file.close();
+
+
+	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+	normalize(x);
 	pca(x, pc1,pc2);
 
 
@@ -387,17 +378,17 @@ int main( int argc, char **argv )
 		dm[i] = dm[i] / x.col;
 	}
 
-	MATRIXf pd1;
+	MATRIX<float> pd1;
 	pd1.data = (float*)malloc(sizeof(float) * 20000);
 	pd1.row = 20000;
 	pd1.col = 1;
 
-	MATRIXf pd2;
+	MATRIX<float> pd2;
 	pd2.data = (float*)malloc(sizeof(float) * 20000);
 	pd2.row = 20000;
 	pd2.col = 1;
 
-	MATRIXf data_dm;
+	MATRIX<float> data_dm;
 	data_dm.data = (float*)malloc(sizeof(float) * 20000 * VECTOR_SIZE);
 	data_dm.row = VECTOR_SIZE;
 	data_dm.col = 20000;
@@ -441,7 +432,7 @@ int main( int argc, char **argv )
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	MATRIXf ww;
+	MATRIX<float> ww;
 	ww.data = (float*)malloc(sizeof(float) * IMAGE_M * IMAGE_N * VECTOR_SIZE);
 	ww.row = IMAGE_M * IMAGE_N;
 	ww.col = VECTOR_SIZE;

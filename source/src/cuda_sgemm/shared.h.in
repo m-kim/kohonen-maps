@@ -6,6 +6,8 @@
 #define IMAGE_MxN IMAGE_M * IMAGE_N
 #define VECTOR_SIZE 16
 
+typedef float MATRIX_TYPE;
+
 #define host_T 20
 
 //yes I know this isn't strict C, but I'm not that fussy...
@@ -13,6 +15,13 @@
 
 #define SRC_PATH "${PROJECT_SOURCE_DIR}"
 
+template<class T> struct MATRIX{
+	T *data;
+	int row;
+	int col;
+};
+
+/*
 typedef struct{
 	float *data;
 	int row;
@@ -24,7 +33,7 @@ typedef struct{
 	int row;
 	int col;
 } MATRIXu;
-
+*/
 //float operator[](MATRIX mat, unsigned int index)
 //{
 //	return mat.data[index];
