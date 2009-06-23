@@ -53,7 +53,7 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
 	int slab = threadIdx.y + blockDim.y * blockIdx.y;
 	int index = j * IMAGE_M + slab;
-	__shared__ float s_ww[IMAGE_N * IMAGE_M];
+//	__shared__ float s_ww[IMAGE_N * IMAGE_M];
 	int _min = max(slab - _beta, 0);
 	int _max = min(slab + _beta + 1, IMAGE_M);
 
@@ -76,14 +76,14 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
         	ww[i * IMAGE_MxN + index] = abs(ww[i * IMAGE_MxN + index]  +_alpha * (a[i * IMAGE_MxN + index] - ww[i * IMAGE_MxN + index]));
 		}
 		for (int i=0; i<VECTOR_SIZE; i++){
-	    	s_ww[index] += ww[i * IMAGE_MxN + index];
+	    	ww[index] += ww[i * IMAGE_MxN + index];
 		}
 	}
 	__syncthreads();
 	if (slab < IMAGE_M){
 		for (int i=0; i<VECTOR_SIZE; i++){
-			if (s_ww[index] > 0)
-				ww[i * IMAGE_MxN + index] = ww[i * IMAGE_MxN + index] / (s_ww[index]);
+			if (ww[index] > 0)
+				ww[i * IMAGE_MxN + index] = ww[i * IMAGE_MxN + index] / (ww[index]);
 			else
 				ww[i * IMAGE_MxN + index] = 0;
 
@@ -305,7 +305,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
     cudaThreadSynchronize();
  	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-    for (int i=0; i<20000; i++){
+    for (int i=0; i<DATA_SIZE; i++){
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('N', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_ww.col,
@@ -326,7 +326,8 @@ extern "C" int runCuda(unsigned int *device_pbo)
 
     cublasShutdown();
 
-    buildImage<<<625,32>>>(device_ret.data,device_labels.data,device_indices.data);
+    //MANUAL: size should corresponde to total number of rows in data...
+    buildImage<<<1834,32>>>(device_ret.data,device_labels.data,device_indices.data);
     cudaThreadSynchronize();
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
@@ -335,8 +336,9 @@ extern "C" int runCuda(unsigned int *device_pbo)
     printf("Run time %f\n\n", time);
 
     cutResetTimer(timer);
+
     block = dim3(16,16);
-    grid = dim3(2, 2);
+    grid = dim3(IMAGE_M/16, IMAGE_N/16);
     cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
@@ -353,7 +355,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
 //    printf("Transfer back time %f\n\n", time);
 
     block = dim3(16,16);
-    grid = dim3(2,2);
+    grid = dim3(IMAGE_M/16,IMAGE_N/16);
     expandImage<<<grid,block>>>(device_pbo, device_ret.data);
 
     printf("Total Time: %f\n\n", total_time);

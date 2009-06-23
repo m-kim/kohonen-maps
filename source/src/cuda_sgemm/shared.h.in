@@ -4,7 +4,7 @@
 #define IMAGE_M 32
 #define IMAGE_N 32
 #define IMAGE_MxN IMAGE_M * IMAGE_N
-#define VECTOR_SIZE 16
+#define VECTOR_SIZE 64
 
 typedef float MATRIX_TYPE;
 
@@ -13,7 +13,10 @@ typedef float MATRIX_TYPE;
 //yes I know this isn't strict C, but I'm not that fussy...
 #include <string>
 
-#define SRC_PATH "${PROJECT_SOURCE_DIR}"
+//#define SRC_PATH "${PROJECT_SOURCE_DIR}"
+#define DATA_PATH "/data/"
+
+#define DATA_SIZE 26306 + 9581 + 10026 + 12788
 
 template<class T> struct MATRIX{
 	T *data;

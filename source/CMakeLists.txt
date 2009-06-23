@@ -21,4 +21,4 @@ SUBDIRS(
   src
   )
 
- SET(CMAKE_BUILD_TYPE release)
+ SET(CMAKE_BUILD_TYPE debug)

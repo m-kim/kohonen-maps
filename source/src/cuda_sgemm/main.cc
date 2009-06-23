@@ -112,7 +112,7 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 	int info;
 
 	//vector size of 16 then lwork = 201
-	int lwork = 6400;
+	int lwork = 200;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
@@ -330,36 +330,34 @@ int main( int argc, char **argv )
 	pc2.col = 1;
 
 	MATRIX<MATRIX_TYPE> x;
-	x.data = (float*)malloc(sizeof(float) * 20000*VECTOR_SIZE);
 	x.row = VECTOR_SIZE;
-	x.col = 20000;
+	x.col = 48070;
+	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
 
-//	std::ifstream file;
-//	char filename[100];
-//	sprintf(filename, "%s/%s",SRC_PATH,"data");
-//	printf("%s\n",filename);
-//	file.open(filename, std::ifstream::in);
-//	std::string str;
-//	memset(x.data, 0, sizeof(float) * 16 * 20000);
-//	int row = 0;
-//	int col = 0;
-//	while (file.good()){
-//		//getline will retrieve 20000 numbers...
-//		getline(file, str);
-//		char *tok = strtok((char*)str.c_str(), " ");
-//		while (tok != NULL){
-//			//16 rows by 20000 cols in the file
-//			x.data[row * x.col + col] = atof(tok);
-//			tok = strtok(NULL, " ");
-//			col++;
-//		}
-//		col = 0;
-//		row++;
-//	}
-//	file.close();
+	std::ifstream file;
+	char filename[100];
+	sprintf(filename, "%s/%s",DATA_PATH,"what.out");
+	file.open(filename, std::ifstream::in);
+	std::string str;
+	memset(x.data, 0, sizeof(float) * 16 * 48070);
+	int row = 0;
+	while (file.good() && row < 48070){
+		//getline will retrieve 20000 numbers...
+		getline(file, str);
+		if (row > 1){
+			char *tok = strtok((char*)str.c_str(), ",");
+			for (int i=0; i<VECTOR_SIZE; i++){
+				//16 rows by 20000 cols in the file
+				x.data[row + x.col * i] = atof(tok);
+				tok = strtok(NULL, " ");
+			}
+		}
+		row++;
+	}
+	file.close();
 
 
-	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+	//make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
 	normalize(x);
 	pca(x, pc1,pc2);
 
@@ -379,19 +377,19 @@ int main( int argc, char **argv )
 	}
 
 	MATRIX<float> pd1;
-	pd1.data = (float*)malloc(sizeof(float) * 20000);
-	pd1.row = 20000;
+	pd1.row = 48070;
 	pd1.col = 1;
+	pd1.data = (float*)malloc(sizeof(float) * pd1.row);
 
 	MATRIX<float> pd2;
-	pd2.data = (float*)malloc(sizeof(float) * 20000);
-	pd2.row = 20000;
+	pd2.row = 48070;
 	pd2.col = 1;
+	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
 
 	MATRIX<float> data_dm;
-	data_dm.data = (float*)malloc(sizeof(float) * 20000 * VECTOR_SIZE);
 	data_dm.row = VECTOR_SIZE;
-	data_dm.col = 20000;
+	data_dm.col = 48070;
+	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
 	for (int i=0; i<data_dm.col; i++){
 		for (int j=0; j<data_dm.row; j++){
