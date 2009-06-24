@@ -4,11 +4,15 @@
 #define IMAGE_M 32
 #define IMAGE_N 32
 #define IMAGE_MxN IMAGE_M * IMAGE_N
-#define VECTOR_SIZE 64
+#define VECTOR_SIZE 16
+#define REDUCE_BLOCKSIZE 32
+#define LOG2_REDUCE_BLOCKSIZE 5
+
+#define PCA_SIZE 512
 
 typedef float MATRIX_TYPE;
 
-#define host_T 20
+#define host_T 10
 
 //yes I know this isn't strict C, but I'm not that fussy...
 #include <string>
@@ -16,7 +20,8 @@ typedef float MATRIX_TYPE;
 //#define SRC_PATH "${PROJECT_SOURCE_DIR}"
 #define DATA_PATH "/data/"
 
-#define DATA_SIZE 26306 + 9581 + 10026 + 12788
+#define BUILD_IMAGE_GRID_SIZE 1812
+#define DATA_SIZE 58000 //(26306 + 9581 + 10026 + 12788)
 
 template<class T> struct MATRIX{
 	T *data;

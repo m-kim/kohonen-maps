@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <cutil_inline.h>
 #define EPSILON 0.000001
-#define REDUCE_BLOCKSIZE 256
-#define LOG2_REDUCE_BLOCKSIZE 8
+
 
 MATRIX<MATRIX_TYPE> device_ww, device_data, device_ww2, device_save, device_sum, device_scratch;
-MATRIX<unsigned int> device_labels, device_indices, device_ww_count, device_ret,device_ww_count2;
+MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
+
 float* a;
 unsigned int *ret, *indices;
 
@@ -25,8 +25,8 @@ __global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
 		//this shouldn't be backwards...*sigh*
 		ww2[i] += pow(ww.data[j * ww.row + i],2);
 	}
-
 }
+
 __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	int j = threadIdx.x + blockDim.x * blockIdx.x;
@@ -97,12 +97,11 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 	int size = 1024;
 	//using shared memory here will limit me...
 	//initialize with hard coded numbers because compile error on variable initialization
-	__shared__ uint argmax[1024];
+	__shared__ int argmax[1024];
 	__shared__ float s_vec[1024];
 
 	int blocksize = REDUCE_BLOCKSIZE;
 	int coalesce_num = size/blocksize;
-	argmax[threadIdx.x] = threadIdx.x;
 
 	for (int i=0; i<1024/REDUCE_BLOCKSIZE; i++){
 		argmax[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
@@ -110,7 +109,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 	}
 
 
-	// 256->32
+	// Large number ->32
 	for (int j=1; j < coalesce_num; j++){
 		if (threadIdx.x + blocksize * j < IMAGE_MxN){
 			argmax[threadIdx.x] = (s_vec[argmax[threadIdx.x]] > s_vec[argmax[j * blocksize + threadIdx.x]])?
@@ -128,7 +127,8 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		}
 	}
 	__syncthreads();
-	ret[ argmax[0] ]++;
+	if (threadIdx.x < 1)
+		ret[ argmax[0] ]++;
 	indices[index] = argmax[0];
 
 	//take the vector from data and save it to ww_sum
@@ -181,8 +181,8 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	}
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * 256, cudaMemcpyHostToDevice));
 
-	host_beta[0] = 8;
-	host_beta[1] = 8;
+	host_beta[0] = 3;
+	host_beta[1] = 3;
 	host_alpha[0] = .6;
 	host_alpha[1] = .6;
 
@@ -196,7 +196,7 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	cutilSafeCall(cudaMemcpy(device_labels.data, labels, sizeof(uint) * data.col, cudaMemcpyHostToDevice));
 
 	device_ww_count.row = ww.row;
-	device_ww_count.col = ww.col;
+	device_ww_count.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * device_ww_count.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
 
@@ -205,15 +205,15 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
 
-    device_indices.row = ww.row;
-    device_indices.col = 1;
+    device_ret.row = ww.row;
+    device_ret.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ret.data, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret.data, 0, sizeof(unsigned int) * ww.row));
 
-    device_indices.row = data.col;
+    device_indices.row = DATA_SIZE;
     device_indices.col = 1;
-    cutilSafeCall(cudaMalloc((void**)&device_indices.data, sizeof(unsigned int) * data.col));
-    cutilSafeCall(cudaMemset(device_indices.data, 0, sizeof(unsigned int) * data.col));
+    cutilSafeCall(cudaMalloc((void**)&device_indices.data, sizeof(unsigned int) * DATA_SIZE));
+    cutilSafeCall(cudaMemset((void*)device_indices.data, 0, sizeof(unsigned int) * DATA_SIZE));
 
     device_ww.row = ww.row;
     device_ww.col = ww.col;
@@ -233,7 +233,6 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     printf("setup matrix ww2 %d %d\n", device_ww2.row, device_ww2.col);
     cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
 	cutilSafeCall(cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col));
-
 
     device_sum.row = ww.row;
     device_sum.col = ww.col;
@@ -285,7 +284,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
     cutResetTimer(timer);
     cutStartTimer(timer);
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
-    cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count.row));
+    cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
 
     cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col);
 
@@ -327,7 +326,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
     cublasShutdown();
 
     //MANUAL: size should corresponde to total number of rows in data...
-    buildImage<<<1834,32>>>(device_ret.data,device_labels.data,device_indices.data);
+    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data,device_labels.data,device_indices.data);
     cudaThreadSynchronize();
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
@@ -345,14 +344,6 @@ extern "C" int runCuda(unsigned int *device_pbo)
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
 
 	cudaThreadSynchronize();
-//    cutStartTimer(timer);
-//    cutilSafeCall(cudaMemcpy(a, device_ww.data, sizeof(float) * IMAGE_MxN * 16, cudaMemcpyDeviceToHost));
-//	int ww_count[device_ww.row * device_ww.col];
-//	cutilSafeCall(cudaMemcpy(ww_count, device_ww_count.data, sizeof(int) * device_ww.row * device_ww.col, cudaMemcpyDeviceToHost));
-//    cutStopTimer(timer);
-//    time = cutGetTimerValue(timer);
-//    total_time += time;
-//    printf("Transfer back time %f\n\n", time);
 
     block = dim3(16,16);
     grid = dim3(IMAGE_M/16,IMAGE_N/16);
@@ -360,21 +351,12 @@ extern "C" int runCuda(unsigned int *device_pbo)
 
     printf("Total Time: %f\n\n", total_time);
 #if DEBUG_PRINT
-	for (int i=0; i<16; i++){
-		for (int j=0; j<IMAGE_N; j++){
-			for (int k=0; k<IMAGE_M; k++){
-				printf("%f ", a[i * IMAGE_MxN + j * IMAGE_M + k]);
-			}
-			printf("\n");
-		}
-		printf("\n");
+    uint count[DATA_SIZE];
+    cutilSafeCall(cudaMemcpy(count, device_indices.data, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
+	for (int i=0; i<DATA_SIZE; i++){
+			printf("%d %d \n", i,count[i]);
 	}
 
-	for (int i=0; i<IMAGE_N; i++){
-		for (int j=0; j<IMAGE_M;j++){
-			printf("%d ", ww_count[i * IMAGE_M + j]);
-		}printf("\n");
-	}
 #endif
 	host_r++;
 	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));

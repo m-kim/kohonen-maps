@@ -22,8 +22,12 @@ extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const
         float* A, const int* lda, float* S, float* U, const int* ldu,
         float* VT, const int* ldvt, float* work,const int* lwork, const
         int* info);
+extern "C" void sgesdd_(char *jobz, int *m, int *n,
+		float *a, int *lda, float *s, float *u, int *ldu,
+		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
-int expansion = 4;
+
+float expansion = 5;
 float bin1, bin2;
 uchar4 *d_output;
 
@@ -101,7 +105,7 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 	float *cov_mat = (float*)malloc(sizeof(float) * x.row * x.row);
 
 	cov(x,cov_mat);
-	char JOBU = 'A';
+	char JOBU = 'N';
 	char JOBV = 'A';
 
 	int svd_M = x.row;
@@ -111,20 +115,34 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 	int ldv = x.row;
 	int info;
 
-	//vector size of 16 then lwork = 201
-	int lwork = 200;
+	int lwork = 3 * svd_M * svd_M + 4 * svd_M * svd_M + 4 * svd_M;;
 	float s[x.row];
 	float uu[x.row*x.row];
 	float vv[x.row*x.row];
 	float wk[lwork];
 
-	sgesvd_(&JOBU, &JOBV,
+	int iwork[8 * svd_M];
+//	sgesvd_(&JOBU, &JOBV,
+//			&svd_N, &svd_M,
+//			cov_mat, &lda,
+//			s,
+//			uu, &ldu,
+//			vv, &ldv,
+//			wk, &lwork,
+//			&info);
+
+	//allegedly faster than sgesvd, but more memory required
+	//vector size: 3*m*m + 4*m*m + 4*m
+	//http://www.netlib.org/lapack/double/dgesdd.f
+	//iwork, dimension (8*min(M,N))
+	sgesdd_(&JOBV,
 			&svd_N, &svd_M,
 			cov_mat, &lda,
 			s,
 			uu, &ldu,
 			vv, &ldv,
 			wk, &lwork,
+			iwork,
 			&info);
 
 
@@ -313,6 +331,35 @@ void initGL( int argc, char **argv )
     }
 }
 
+void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset, uint label_value)
+{
+	std::ifstream file;
+	char filename[100];
+	sprintf(filename, "%s%s",DATA_PATH,name.c_str() );
+	printf("%s\n", filename);
+	file.open(filename, std::ifstream::in);
+	std::string str;
+
+	int row = 0;
+	if (!file.good())
+		printf("file bad!\n");
+	while (file.good()){
+		//getline will retrieve 20000 numbers...
+		getline(file, str);
+		if (isdigit(str.c_str()[0])){
+			char *tok = strtok((char*)str.c_str(), ",");
+			for (int i=0; i<VECTOR_SIZE; i++){
+				//16 rows by 20000 cols in the file
+				x.data[offset + row + x.col * i] = atof(tok);
+				tok = strtok(NULL, " ");
+			}
+			labels[offset + row] = label_value;
+			row++;
+		}
+	}
+	printf("row: %d\n",row);
+	file.close();
+}
 
 int main( int argc, char **argv )
 {
@@ -331,36 +378,30 @@ int main( int argc, char **argv )
 
 	MATRIX<MATRIX_TYPE> x;
 	x.row = VECTOR_SIZE;
-	x.col = 48070;
+	x.col =  DATA_SIZE;
 	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
+	memset(x.data, 0, sizeof(float) * VECTOR_SIZE * (26306));
+
+	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
 
 	std::ifstream file;
 	char filename[100];
-	sprintf(filename, "%s/%s",DATA_PATH,"what.out");
-	file.open(filename, std::ifstream::in);
 	std::string str;
-	memset(x.data, 0, sizeof(float) * 16 * 48070);
 	int row = 0;
-	while (file.good() && row < 48070){
-		//getline will retrieve 20000 numbers...
-		getline(file, str);
-		if (row > 1){
-			char *tok = strtok((char*)str.c_str(), ",");
-			for (int i=0; i<VECTOR_SIZE; i++){
-				//16 rows by 20000 cols in the file
-				x.data[row + x.col * i] = atof(tok);
-				tok = strtok(NULL, " ");
-			}
-		}
-		row++;
-	}
-	file.close();
 
+	getFile("anoGAm1.fa", x, labels, 0, 0);
+	getFile("cb3.fa", x, labels, 26306, 1);
+	getFile("ce2.fa", x, labels, 26306 + 9581, 2);
+	getFile("dm2.fa", x, labels, 26306 + 9581 + 10026, 5);
 
-	//make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+//	make_data(2900, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+//	for (int i=0; i<20; i++){
+//		for (int j=0; j<2900; j++){
+//			labels[i * 2900 + j] = i;
+//		}
+//	}
 	normalize(x);
 	pca(x, pc1,pc2);
-
 
 	//mean0 == dm
 	//dm should be shape = (16,)
@@ -377,18 +418,18 @@ int main( int argc, char **argv )
 	}
 
 	MATRIX<float> pd1;
-	pd1.row = 48070;
+	pd1.row = DATA_SIZE;
 	pd1.col = 1;
 	pd1.data = (float*)malloc(sizeof(float) * pd1.row);
 
 	MATRIX<float> pd2;
-	pd2.row = 48070;
+	pd2.row = DATA_SIZE;
 	pd2.col = 1;
 	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
 
 	MATRIX<float> data_dm;
 	data_dm.row = VECTOR_SIZE;
-	data_dm.col = 48070;
+	data_dm.col =  DATA_SIZE;
 	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
 	for (int i=0; i<data_dm.col; i++){
@@ -444,13 +485,6 @@ int main( int argc, char **argv )
 		}
 	}
 
-	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
-	for (int i=0; i< 20; i++){
-		for (int j=0;j<1000; j++){
-			labels[i * 1000 + j] = i;
-		}
-	}
-
     // map PBO to get CUDA device pointer
 	initGLBuffers();
    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
@@ -459,17 +493,16 @@ int main( int argc, char **argv )
 	//K = 20000
 	//M = 16
 	//N = 896 (32 * 28)
+	unsigned int timer;
+    cutCreateTimer(&timer);
+    double time;
+    cutResetTimer(timer);
+    cutStartTimer(timer);
 	setupCuda(ww,x, labels,(unsigned int*)d_output);
-//	unsigned int timer;
-//    cutCreateTimer(&timer);
-//    double time;
-//    cutResetTimer(timer);
-//    cutStartTimer(timer);
-//	for (int i=0; i<host_T; i++)
-	    runCuda((unsigned int*)d_output);
-//    cutStopTimer(timer);
-//    time = cutGetTimerValue(timer);
-//    printf("Run time %f\n\n", time);
+	cutStopTimer(timer);
+	time = cutGetTimerValue(timer);
+	printf("Setup time %f\n\n", time);
+    	runCuda((unsigned int*)d_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
