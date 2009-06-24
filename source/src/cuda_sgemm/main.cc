@@ -392,7 +392,7 @@ int main( int argc, char **argv )
 	getFile("anoGAm1.fa", x, labels, 0, 0);
 	getFile("cb3.fa", x, labels, 26306, 1);
 	getFile("ce2.fa", x, labels, 26306 + 9581, 2);
-	getFile("dm2.fa", x, labels, 26306 + 9581 + 10026, 5);
+	getFile("dm2.fa", x, labels, 26306 + 9581 + 10026, 3);
 
 //	make_data(2900, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
 //	for (int i=0; i<20; i++){

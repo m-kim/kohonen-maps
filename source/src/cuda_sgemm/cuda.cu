@@ -113,7 +113,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 	for (int j=1; j < coalesce_num; j++){
 		if (threadIdx.x + blocksize * j < IMAGE_MxN){
 			argmax[threadIdx.x] = (s_vec[argmax[threadIdx.x]] > s_vec[argmax[j * blocksize + threadIdx.x]])?
-						argmax[threadIdx.x]:argmax[j * blocksize+threadIdx.x];
+						argmax[threadIdx.x]:argmax[j * blocksize + threadIdx.x];
 		}
 	}
 
@@ -139,16 +139,40 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
 {
 	uint i = threadIdx.x + blockDim.x * blockIdx.x;
-	__shared__ int nn[IMAGE_N];
-	__shared__ int mm[IMAGE_N];
-	nn[threadIdx.x] = indices[i] / IMAGE_M;
-	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i] + 1;
+	uint j = threadIdx.y + blockDim.y * blockIdx.y;
+	uint index = i * IMAGE_N + j;
+
+//	__shared__ int nn[IMAGE_N];
+//	__shared__ int mm[IMAGE_N];
+//	nn[threadIdx.x] = indices[i] / IMAGE_M;
+//	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
+//	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i] + 1;
+
+	int genome[4];
+	genome[0] = 0;
+	genome[1] = 0;
+	genome[2] = 0;
+	genome[3] = 0;
+
+	for (int i=0; i<DATA_SIZE; i++){
+		if (indices[i] == index){
+			genome[ labels[i] ]++;
+		}
+	}
+	if (genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
+		im[index] = 1;
+	else if (genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
+		im[index] = 2;
+	else if (genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
+		im[index] = 3;
+	else if (genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
+		im[index] = 6;
+	else
+		im[index] = 0;
 }
 
 __global__ void expandImage(uint *im, const uint *ret)
 {
-
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
@@ -325,8 +349,10 @@ extern "C" int runCuda(unsigned int *device_pbo)
 
     cublasShutdown();
 
-    //MANUAL: size should corresponde to total number of rows in data...
-    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data,device_labels.data,device_indices.data);
+    block = dim3(16,16);
+    grid = dim3(2,2);
+    //MANUAL: size should correspond to total number of rows in data...
+    buildImage<<<grid,block>>>(device_ret.data,device_labels.data,device_indices.data);
     cudaThreadSynchronize();
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
