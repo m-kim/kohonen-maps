@@ -26,6 +26,7 @@ extern "C" void sgesdd_(char *jobz, int *m, int *n,
 		float *a, int *lda, float *s, float *u, int *ldu,
 		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
+extern "C" void generateImage(int genome_index, unsigned int * device_pbo);
 
 float expansion = 5;
 float bin1, bin2;
@@ -238,6 +239,8 @@ void display()
     glutReportErrors();
 
 }
+
+int genome_index = 0;
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
     switch(key) {
@@ -246,12 +249,16 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
         runCuda((unsigned int*)d_output);
 
     	break;
-        case 27:
-            exit(0);
-            break;
+    case 'r':
+    case 'R':
+    	generateImage(++genome_index %4, (unsigned int*)d_output);
+    	break;
+	case 27:
+		exit(0);
+		break;
 
-        default:
-            break;
+	default:
+		break;
     }
     glutPostRedisplay();
 }

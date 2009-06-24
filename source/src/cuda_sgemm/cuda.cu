@@ -136,17 +136,11 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
-__global__ void buildImage(uint *im, uint *labels, uint *indices)
+__global__ void buildImage(uint *im, uint *labels, uint *indices, int genome_index)
 {
 	uint i = threadIdx.x + blockDim.x * blockIdx.x;
 	uint j = threadIdx.y + blockDim.y * blockIdx.y;
 	uint index = i * IMAGE_N + j;
-
-//	__shared__ int nn[IMAGE_N];
-//	__shared__ int mm[IMAGE_N];
-//	nn[threadIdx.x] = indices[i] / IMAGE_M;
-//	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-//	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i] + 1;
 
 	int genome[4];
 	genome[0] = 0;
@@ -159,13 +153,14 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 			genome[ labels[i] ]++;
 		}
 	}
-	if (genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
+
+	if (genome_index == 0 && genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
 		im[index] = 1;
-	else if (genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
+	else if (genome_index == 1 && genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
 		im[index] = 2;
-	else if (genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
+	else if (genome_index == 2 && genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
 		im[index] = 3;
-	else if (genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
+	else if (genome_index == 3 && genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
 		im[index] = 6;
 	else
 		im[index] = 0;
@@ -229,7 +224,8 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
 
-    device_ret.row = ww.row;
+    //multiply by the number of genomes
+    device_ret.row = ww.row * 4;
     device_ret.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ret.data, sizeof(unsigned int) * ww.row));
     cutilSafeCall(cudaMemset((void*)device_ret.data, 0, sizeof(unsigned int) * ww.row));
@@ -295,6 +291,13 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 //    }
 }
 
+extern "C" void generateImage(int genome_index, unsigned int * device_pbo)
+{
+	dim3 block(16,16);
+	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	expandImage<<<grid,block>>>(device_pbo, device_ret.data + genome_index * IMAGE_MxN);
+}
+
 extern "C" int runCuda(unsigned int *device_pbo)
 {
 	unsigned int timer;
@@ -352,7 +355,8 @@ extern "C" int runCuda(unsigned int *device_pbo)
     block = dim3(16,16);
     grid = dim3(2,2);
     //MANUAL: size should correspond to total number of rows in data...
-    buildImage<<<grid,block>>>(device_ret.data,device_labels.data,device_indices.data);
+    for (int i=0; i<4; i++)
+    	buildImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
     cudaThreadSynchronize();
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
@@ -371,10 +375,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
 
 	cudaThreadSynchronize();
 
-    block = dim3(16,16);
-    grid = dim3(IMAGE_M/16,IMAGE_N/16);
-    expandImage<<<grid,block>>>(device_pbo, device_ret.data);
-
+	generateImage(0, device_pbo);
     printf("Total Time: %f\n\n", total_time);
 #if DEBUG_PRINT
     uint count[DATA_SIZE];
