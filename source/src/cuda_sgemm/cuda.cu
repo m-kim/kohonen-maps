@@ -142,7 +142,7 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices, int genome_ind
 	uint j = threadIdx.y + blockDim.y * blockIdx.y;
 	uint index = i * IMAGE_N + j;
 
-	int genome[4];
+	int genome[GENOMIC_DATA_COUNT];
 	genome[0] = 0;
 	genome[1] = 0;
 	genome[2] = 0;
@@ -192,10 +192,10 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     //setup color
 	unsigned char color[1024];
 	for(unsigned int i=0; i<255; i+=4){
-		color[i] = (unsigned char)i;
-		color[i + 1] = (i + 64) % 256;
-		color[i + 2] = (i + 128) % 256;
-		color[i + 3] = (i + 192) % 256;
+		color[i] = i;  //green
+		color[i + 1] = (i + 64) % 256;  //blue
+		color[i + 2] = 0;//(i + 128) % 256;		//allegedly this is alpha
+		color[i + 3] = (i + 192) % 256; //red
 
 	}
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * 256, cudaMemcpyHostToDevice));
@@ -355,7 +355,7 @@ extern "C" int runCuda(unsigned int *device_pbo)
     block = dim3(16,16);
     grid = dim3(2,2);
     //MANUAL: size should correspond to total number of rows in data...
-    for (int i=0; i<4; i++)
+    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
     	buildImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
     cudaThreadSynchronize();
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));

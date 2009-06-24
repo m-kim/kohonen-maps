@@ -217,7 +217,7 @@ void display()
 		glBindTexture  (GL_TEXTURE_TYPE, displayTex);
 		glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
 		glTexSubImage2D(GL_TEXTURE_TYPE,
-						0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+						0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 		glEnable(GL_TEXTURE_TYPE);
 
 		// draw textured quad
@@ -251,7 +251,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
     	break;
     case 'r':
     case 'R':
-    	generateImage(++genome_index %4, (unsigned int*)d_output);
+    	generateImage(++genome_index % GENOMIC_DATA_COUNT, (unsigned int*)d_output);
     	break;
 	case 27:
 		exit(0);
