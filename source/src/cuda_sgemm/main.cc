@@ -26,11 +26,12 @@ extern "C" void sgesdd_(char *jobz, int *m, int *n,
 		float *a, int *lda, float *s, float *u, int *ldu,
 		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
-extern "C" void generateImage(int genome_index, unsigned int * device_pbo);
+extern "C" int genome_index = 0;
+extern "C" void generateImage(int g_index, unsigned int * device_pbo);
 
 float expansion = 5;
 float bin1, bin2;
-uchar4 *d_output;
+uint *d_output;
 
 GLuint pbo        = 0;          // OpenGL pixel buffer object
 GLuint displayTex = 0;
@@ -217,7 +218,7 @@ void display()
 		glBindTexture  (GL_TEXTURE_TYPE, displayTex);
 		glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
 		glTexSubImage2D(GL_TEXTURE_TYPE,
-						0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+						0, 0, 0, width, height, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
 		glEnable(GL_TEXTURE_TYPE);
 
 		// draw textured quad
@@ -240,18 +241,26 @@ void display()
 
 }
 
-int genome_index = 0;
+
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
     switch(key) {
     case 'n':
     case 'N':
-        runCuda((unsigned int*)d_output);
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
+
+        runCuda(d_output);
+       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
 
     	break;
     case 'r':
     case 'R':
-    	generateImage(++genome_index % GENOMIC_DATA_COUNT, (unsigned int*)d_output);
+    	genome_index = ++genome_index % GENOMIC_DATA_COUNT;
+    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
+    	generateImage(genome_index, d_output);
+       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
+
+       	printf("Genome data %d\n", genome_index + 1);
     	break;
 	case 27:
 		exit(0);
@@ -273,7 +282,7 @@ void initGLBuffers()
     // create pixel buffer object for display
     glGenBuffersARB(1, &pbo);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uchar4), 0, GL_STREAM_DRAW_ARB);
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uint), 0, GL_STREAM_DRAW_ARB);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
     cutilSafeCall(cudaGLRegisterBufferObject(pbo));
@@ -284,7 +293,7 @@ void initGLBuffers()
     }
     glGenTextures(1, &displayTex);
     glBindTexture  (GL_TEXTURE_TYPE, displayTex);
-    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_INT, NULL);
     glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture  (GL_TEXTURE_TYPE, 0);
@@ -505,11 +514,11 @@ int main( int argc, char **argv )
     double time;
     cutResetTimer(timer);
     cutStartTimer(timer);
-	setupCuda(ww,x, labels,(unsigned int*)d_output);
+	setupCuda(ww,x, labels,d_output);
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
-    	runCuda((unsigned int*)d_output);
+    	runCuda(d_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 

@@ -4,6 +4,7 @@
 #include <cutil_inline.h>
 #define EPSILON 0.000001
 
+extern "C" int genome_index;
 
 MATRIX<MATRIX_TYPE> device_ww, device_data, device_ww2, device_save, device_sum, device_scratch;
 MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
@@ -14,8 +15,8 @@ unsigned int *ret, *indices;
 float host_alpha[2];
 int host_r = -1, host_beta[2];
 
-__constant__ uint constant_color[256];
-__constant__ int beta[2];
+__constant__ uint constant_color[COLOR_SIZE];
+
 
 __global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
 {
@@ -136,7 +137,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
-__global__ void buildImage(uint *im, uint *labels, uint *indices, int genome_index)
+__global__ void buildImage(uint *im, uint *labels, uint *indices, int g_index)
 {
 	uint i = threadIdx.x + blockDim.x * blockIdx.x;
 	uint j = threadIdx.y + blockDim.y * blockIdx.y;
@@ -154,13 +155,13 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices, int genome_ind
 		}
 	}
 
-	if (genome_index == 0)
+	if (g_index == 0)
 		im[index] = genome[0];
-	else if (genome_index == 1)
+	else if (g_index == 1)
 		im[index] = genome[1];
-	else if (genome_index == 2)
+	else if (g_index == 2)
 		im[index] = genome[2];
-	else if (genome_index == 3)
+	else if (g_index == 3)
 		im[index] = genome[3];
 	else
 		im[index] = 0;
@@ -173,7 +174,7 @@ __global__ void expandImage(uint *im, const uint *ret)
 
 	for (int i=0; i<16; i++){
 		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]] * ret[y * IMAGE_M + x];
+			im[(y * 16 + j) * 512 + x * 16 + i] = 7158278 * ret[y * IMAGE_M + x];
 		}
 	}
 }
@@ -190,22 +191,17 @@ extern "C" void cleanup()
 extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_pbo)
 {
     //setup color
-	unsigned char color[1024];
-	for(unsigned int i=0; i<255; i+=4){
-		color[i] = i;  //green
-		color[i + 1] = (i + 64) % 256;  //blue
-		color[i + 2] = 0;//(i + 128) % 256;		//allegedly this is alpha
-		color[i + 3] = (i + 192) % 256; //red
-
+	uint luminance[COLOR_SIZE];
+	for(unsigned int i=0; i<COLOR_SIZE; i++){
+		luminance[i] = (COLOR_SIZE - i) * 16777216;  //green
 	}
-	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * 256, cudaMemcpyHostToDevice));
+	cutilSafeCall(cudaMemcpyToSymbol(constant_color, luminance, sizeof(unsigned int) * COLOR_SIZE, 0));
 
 	host_beta[0] = 8;
 	host_beta[1] = 8;
 	host_alpha[0] = .6;
 	host_alpha[1] = .6;
 
-	cutilSafeCall(cudaMemcpyToSymbol(beta, host_beta, sizeof(int) * 2, cudaMemcpyHostToDevice));
 
 	cudaMemset(device_pbo, 128, sizeof(unsigned int) * 512 * 512);
 
@@ -291,11 +287,11 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 //    }
 }
 
-extern "C" void generateImage(int genome_index, unsigned int * device_pbo)
+extern "C" void generateImage(int g_index, unsigned int * device_pbo)
 {
 	dim3 block(16,16);
 	dim3 grid(IMAGE_M/16,IMAGE_N/16);
-	expandImage<<<grid,block>>>(device_pbo, device_ret.data + genome_index * IMAGE_MxN);
+	expandImage<<<grid,block>>>(device_pbo, device_ret.data + g_index * IMAGE_MxN);
 }
 
 extern "C" int runCuda(unsigned int *device_pbo)
@@ -377,14 +373,20 @@ extern "C" int runCuda(unsigned int *device_pbo)
 
 	generateImage(0, device_pbo);
     printf("Total Time: %f\n\n", total_time);
-#if DEBUG_PRINT
-    uint count[DATA_SIZE];
-    cutilSafeCall(cudaMemcpy(count, device_indices.data, sizeof(int) * DATA_SIZE, cudaMemcpyDeviceToHost));
-	for (int i=0; i<DATA_SIZE; i++){
-			printf("%d %d \n", i,count[i]);
+//#if DEBUG_PRINT
+    uint count[4096];
+    cutilSafeCall(cudaMemcpy(count, device_ret.data, sizeof(int) * 4096, cudaMemcpyDeviceToHost));
+	for (int i=0; i<4; i++){
+		for (int j=0; j<32; j++){
+			for (int k=0; k<32; k++){
+				printf("%d ", count[i * 1024 + j * 32 + k]);
+			}
+			printf("\n");
+		}
+		printf("\n");
 	}
 
-#endif
+//#endif
 	host_r++;
 	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));
 	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
