@@ -15,8 +15,8 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_pbo);
-extern "C" int runCuda(unsigned int *device_pbo);
+extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo);
+extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo);
 extern "C" void cleanup();
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
         float* A, const int* lda, float* S, float* U, const int* ldu,
@@ -27,14 +27,17 @@ extern "C" void sgesdd_(char *jobz, int *m, int *n,
 		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
 extern "C" int genome_index = 0;
-extern "C" void generateImage(int g_index, unsigned int * device_pbo);
+extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
 
+int split_som_window = 0, som_window = 0;
 float expansion = 5;
 float bin1, bin2;
-uint *d_output;
+uint *d_split_output;
+uchar4 **d_regular_output;
 
-GLuint pbo        = 0;          // OpenGL pixel buffer object
-GLuint displayTex = 0;
+GLuint split_pbo        = 0;          // OpenGL pixel buffer object
+GLuint pbo = 0;
+GLuint displayRegTex = 0, displaySplitTex = 0;
 unsigned int width = 512, height = 512;
 
 float stdDev(const MATRIX<MATRIX_TYPE> &mat)
@@ -205,60 +208,111 @@ int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<M
 }
 
 // display results using OpenGL (called by GLUT)
-void display()
+void display1()
 {
+	glutSetWindow(som_window);
 
-	// Common diplay path
-	{
-		// display results
-		glClear(GL_COLOR_BUFFER_BIT);
+	// display results
+	glClear(GL_COLOR_BUFFER_BIT);
 
-		// download image from PBO to OpenGL texture
-		glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-		glBindTexture  (GL_TEXTURE_TYPE, displayTex);
-		glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-		glTexSubImage2D(GL_TEXTURE_TYPE,
-						0, 0, 0, width, height, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
-		glEnable(GL_TEXTURE_TYPE);
+	// download image from PBO to OpenGL texture
+	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
+	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+	glTexSubImage2D(GL_TEXTURE_TYPE,
+							0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+	glutReportErrors();
+	glEnable(GL_TEXTURE_TYPE);
 
-		// draw textured quad
-		glDisable(GL_DEPTH_TEST);
-		glBegin(GL_QUADS);
-		glTexCoord2f(0    , height);  glVertex2f(0, 0);
-		glTexCoord2f(width, height);  glVertex2f(1, 0);
-		glTexCoord2f(width, 0     );  glVertex2f(1, 1);
-		glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
-		glEnd();
-		glDisable(GL_TEXTURE_TYPE);
-		glDisable(GL_FRAGMENT_PROGRAM_ARB);
+	// draw textured quad
+	glDisable(GL_DEPTH_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0    , height);  glVertex2f(0, 0);
+	glTexCoord2f(width, height);  glVertex2f(1, 0);
+	glTexCoord2f(width, 0     );  glVertex2f(1, 1);
+	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
+	glEnd();
+	glDisable(GL_TEXTURE_TYPE);
 
-		glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
-	}
+    glutSwapBuffers();
+//    glutReportErrors();
+
+}
+
+// display results using OpenGL (called by GLUT)
+void display2()
+{
+	glutSetWindow(split_som_window);
+	// display results
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	// download image from PBO to OpenGL texture
+	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
+	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
+	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+	glTexSubImage2D(GL_TEXTURE_TYPE,
+					0, 0, 0, width, height, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
+	glEnable(GL_TEXTURE_TYPE);
+
+	// draw textured quad
+	glDisable(GL_DEPTH_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0    , height);  glVertex2f(0, 0);
+	glTexCoord2f(width, height);  glVertex2f(1, 0);
+	glTexCoord2f(width, 0     );  glVertex2f(1, 1);
+	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
+	glEnd();
+	glDisable(GL_TEXTURE_TYPE);
+
 
     glutSwapBuffers();
     glutReportErrors();
 
 }
 
-
-void keyboard(unsigned char key, int /*x*/, int /*y*/)
+void keyboard1(unsigned char key, int /*x*/, int /*y*/)
 {
     switch(key) {
     case 'n':
     case 'N':
-       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
 
-        runCuda(d_output);
+        runCuda((uint*)d_regular_output, d_split_output);
        	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
+       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
+
+    	break;
+	case 27:
+		exit(0);
+		break;
+
+	default:
+		break;
+    }
+    glutPostRedisplay();
+}
+
+void keyboard2(unsigned char key, int /*x*/, int /*y*/)
+{
+    switch(key) {
+    case 'n':
+    case 'N':
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+
+        runCuda((uint*)d_regular_output, d_split_output);
+       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
+       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
 
     	break;
     case 'r':
     case 'R':
     	genome_index = ++genome_index % GENOMIC_DATA_COUNT;
-    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
-    	generateImage(genome_index, d_output);
-       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
+    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+    	generateSplitImage(genome_index, d_split_output);
+       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
 
        	printf("Genome data %d\n", genome_index + 1);
     	break;
@@ -271,7 +325,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
     }
     glutPostRedisplay();
 }
-void initGLBuffers()
+void initPBO()
 {
     if (pbo) {
         // delete old buffer
@@ -282,24 +336,56 @@ void initGLBuffers()
     // create pixel buffer object for display
     glGenBuffersARB(1, &pbo);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uint), 0, GL_STREAM_DRAW_ARB);
+
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uchar4), 0, GL_STREAM_DRAW_ARB);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
     cutilSafeCall(cudaGLRegisterBufferObject(pbo));
 
     // create texture for display
-    if (displayTex) {
-        glDeleteTextures(1, &displayTex);
+    if (displayRegTex) {
+        glDeleteTextures(1, &displayRegTex);
     }
-    glGenTextures(1, &displayTex);
-    glBindTexture  (GL_TEXTURE_TYPE, displayTex);
+    glGenTextures(1, &displayRegTex);
+    glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
+    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture  (GL_TEXTURE_TYPE, 0);
+
+}
+void initSplitPBO()
+{
+    if (split_pbo) {
+        // delete old buffer
+        cutilSafeCall(cudaGLUnregisterBufferObject(split_pbo));
+        glDeleteBuffersARB(1, &split_pbo);
+    }
+
+    // create pixel buffer object for display
+    glGenBuffersARB(1, &split_pbo);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uint), 0, GL_STREAM_DRAW_ARB);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    cutilSafeCall(cudaGLRegisterBufferObject(split_pbo));
+
+    // create texture for display
+    if (displaySplitTex) {
+        glDeleteTextures(1, &displaySplitTex);
+    }
+    glGenTextures(1, &displaySplitTex);
+    glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
     glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_LUMINANCE, width, height, 0, GL_LUMINANCE, GL_UNSIGNED_INT, NULL);
     glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture  (GL_TEXTURE_TYPE, 0);
 
-    // calculate new grid size
-//    gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
+}
+void initGLBuffers()
+{
+	initPBO();
+	initSplitPBO();
 }
 void reshape(int x, int y)
 {
@@ -327,12 +413,19 @@ void initGL( int argc, char **argv )
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH);
     glutInitWindowSize(width, height);
-    glutCreateWindow("CUDA bicubic texture filtering");
-    glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
+    som_window = glutCreateWindow("CUDA SOM");
+
+    glutDisplayFunc(display1);
+    glutKeyboardFunc(keyboard1);
 //    glutMouseFunc(mouse);
 //    glutMotionFunc(motion);
     glutReshapeFunc(reshape);
+
+//    split_som_window = glutCreateWindow("CUDA Split Luminance SOM");
+//    glutDisplayFunc(display2);
+//    glutReshapeFunc(reshape);
+//    glutKeyboardFunc(keyboard2);
+
     glutIdleFunc(idle);
 
 
@@ -396,6 +489,17 @@ int main( int argc, char **argv )
 	x.row = VECTOR_SIZE;
 	x.col =  DATA_SIZE;
 	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
+
+	MATRIX<float> pd1;
+	pd1.row = DATA_SIZE;
+	pd1.col = 1;
+	pd1.data = (float*)malloc(sizeof(float) * pd1.row);
+
+	MATRIX<float> pd2;
+	pd2.row = DATA_SIZE;
+	pd2.col = 1;
+	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
+
 	memset(x.data, 0, sizeof(float) * VECTOR_SIZE * (26306));
 
 	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
@@ -405,10 +509,10 @@ int main( int argc, char **argv )
 	std::string str;
 	int row = 0;
 
-	getFile("anoGAm1.fa", x, labels, 0, 0);
-	getFile("cb3.fa", x, labels, 26306, 1);
-	getFile("ce2.fa", x, labels, 26306 + 9581, 2);
-	getFile("dm2.fa", x, labels, 26306 + 9581 + 10026, 3);
+	getFile("cb3.fa", x, labels, 0, 0);
+	getFile("cb3.fa", x, labels, 9581, 1);
+	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
+	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
 
 //	make_data(2900, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
 //	for (int i=0; i<20; i++){
@@ -433,15 +537,6 @@ int main( int argc, char **argv )
 		dm[i] = dm[i] / x.col;
 	}
 
-	MATRIX<float> pd1;
-	pd1.row = DATA_SIZE;
-	pd1.col = 1;
-	pd1.data = (float*)malloc(sizeof(float) * pd1.row);
-
-	MATRIX<float> pd2;
-	pd2.row = DATA_SIZE;
-	pd2.col = 1;
-	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
 
 	MATRIX<float> data_dm;
 	data_dm.row = VECTOR_SIZE;
@@ -503,7 +598,8 @@ int main( int argc, char **argv )
 
     // map PBO to get CUDA device pointer
 	initGLBuffers();
-   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_output, pbo) );
+   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
 
 	//chunk
 	//K = 20000
@@ -514,12 +610,13 @@ int main( int argc, char **argv )
     double time;
     cutResetTimer(timer);
     cutStartTimer(timer);
-	setupCuda(ww,x, labels,d_output);
+	setupCuda(ww,x, labels,(uint*)d_regular_output, d_split_output);
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
-    	runCuda(d_output);
 
+    runCuda((uint*)d_regular_output, d_split_output);
+	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
 	glutMainLoop();

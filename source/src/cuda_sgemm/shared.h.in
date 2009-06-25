@@ -9,7 +9,7 @@
 #define LOG2_REDUCE_BLOCKSIZE 5
 
 #define COLOR_SIZE 16382
-#define LUMINANCE_ADJUSTMENT 600
+#define LUMINANCE_ADJUSTMENT 13421772
 
 #define GENOMIC_DATA_COUNT 4
 
@@ -25,8 +25,8 @@ typedef float MATRIX_TYPE;
 //#define SRC_PATH "${PROJECT_SOURCE_DIR}"
 #define DATA_PATH "/data/"
 
-#define BUILD_IMAGE_GRID_SIZE 1812
-#define DATA_SIZE 58000 //(26306 + 9581 + 10026 + 12788)
+#define BUILD_IMAGE_GRID_SIZE 1311
+#define DATA_SIZE 41976 //(26306 + 9581 + 10026 + 12788)
 
 template<class T> struct MATRIX{
 	T *data;
