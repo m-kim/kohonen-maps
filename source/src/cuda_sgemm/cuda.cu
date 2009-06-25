@@ -154,14 +154,14 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices, int genome_ind
 		}
 	}
 
-	if (genome_index == 0 && genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
-		im[index] = 1;
-	else if (genome_index == 1 && genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
-		im[index] = 2;
-	else if (genome_index == 2 && genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
-		im[index] = 3;
-	else if (genome_index == 3 && genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
-		im[index] = 6;
+	if (genome_index == 0)
+		im[index] = genome[0];
+	else if (genome_index == 1)
+		im[index] = genome[1];
+	else if (genome_index == 2)
+		im[index] = genome[2];
+	else if (genome_index == 3)
+		im[index] = genome[3];
 	else
 		im[index] = 0;
 }
@@ -200,8 +200,8 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	}
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * 256, cudaMemcpyHostToDevice));
 
-	host_beta[0] = 3;
-	host_beta[1] = 3;
+	host_beta[0] = 8;
+	host_beta[1] = 8;
 	host_alpha[0] = .6;
 	host_alpha[1] = .6;
 
