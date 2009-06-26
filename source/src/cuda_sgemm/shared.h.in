@@ -25,8 +25,8 @@ typedef float MATRIX_TYPE;
 //#define SRC_PATH "${PROJECT_SOURCE_DIR}"
 #define DATA_PATH "/data/"
 
-#define BUILD_IMAGE_GRID_SIZE 1311
-#define DATA_SIZE 41976 //(26306 + 9581 + 10026 + 12788)
+#define DATA_SIZE 20000 //(26306 + 9581 + 10026 + 12788)
+#define BUILD_IMAGE_GRID_SIZE DATA_SIZE/32
 
 template<class T> struct MATRIX{
 	T *data;

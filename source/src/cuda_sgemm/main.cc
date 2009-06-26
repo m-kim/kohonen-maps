@@ -126,29 +126,29 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 	float vv[x.row*x.row];
 	float wk[lwork];
 
-	int iwork[8 * svd_M];
-//	sgesvd_(&JOBU, &JOBV,
-//			&svd_N, &svd_M,
-//			cov_mat, &lda,
-//			s,
-//			uu, &ldu,
-//			vv, &ldv,
-//			wk, &lwork,
-//			&info);
-
-	//allegedly faster than sgesvd, but more memory required
-	//vector size: 3*m*m + 4*m*m + 4*m
-	//http://www.netlib.org/lapack/double/dgesdd.f
-	//iwork, dimension (8*min(M,N))
-	sgesdd_(&JOBV,
+	sgesvd_(&JOBU, &JOBV,
 			&svd_N, &svd_M,
 			cov_mat, &lda,
 			s,
 			uu, &ldu,
 			vv, &ldv,
 			wk, &lwork,
-			iwork,
 			&info);
+
+//	int iwork[8 * svd_M];
+//	//allegedly faster than sgesvd, but more memory required
+//	//vector size: 3*m*m + 4*m*m + 4*m
+//	//http://www.netlib.org/lapack/double/dgesdd.f
+//	//iwork, dimension (8*min(M,N))
+//	sgesdd_(&JOBV,
+//			&svd_N, &svd_M,
+//			cov_mat, &lda,
+//			s,
+//			uu, &ldu,
+//			vv, &ldv,
+//			wk, &lwork,
+//			iwork,
+//			&info);
 
 
 	for (int i=0; i<x.row; i++){
@@ -500,26 +500,29 @@ int main( int argc, char **argv )
 	pd2.col = 1;
 	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
 
-	memset(x.data, 0, sizeof(float) * VECTOR_SIZE * (26306));
+	MATRIX<float> data_dm;
+	data_dm.row = VECTOR_SIZE;
+	data_dm.col =  DATA_SIZE;
+	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
 	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
+	for (int i=0; i<20; i++){
+		for (int j=0; j<1000; j++){
+			labels[i * 1000 + j] = i;
+		}
+	}
 
 	std::ifstream file;
 	char filename[100];
 	std::string str;
 	int row = 0;
 
-	getFile("cb3.fa", x, labels, 0, 0);
-	getFile("cb3.fa", x, labels, 9581, 1);
-	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
-	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
+//	getFile("cb3.fa", x, labels, 0, 0);
+//	getFile("cb3.fa", x, labels, 9581, 1);
+//	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
+//	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
 
-//	make_data(2900, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
-//	for (int i=0; i<20; i++){
-//		for (int j=0; j<2900; j++){
-//			labels[i * 2900 + j] = i;
-//		}
-//	}
+	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
 	normalize(x);
 	pca(x, pc1,pc2);
 
@@ -536,12 +539,6 @@ int main( int argc, char **argv )
 		}
 		dm[i] = dm[i] / x.col;
 	}
-
-
-	MATRIX<float> data_dm;
-	data_dm.row = VECTOR_SIZE;
-	data_dm.col =  DATA_SIZE;
-	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
 	for (int i=0; i<data_dm.col; i++){
 		for (int j=0; j<data_dm.row; j++){

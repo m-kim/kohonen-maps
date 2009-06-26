@@ -210,8 +210,8 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	}
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
-	host_beta[0] = 8;
-	host_beta[1] = 8;
+	host_beta[0] = 6;
+	host_beta[1] = 6;
 	host_alpha[0] = .6;
 	host_alpha[1] = .6;
 
@@ -238,8 +238,8 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     //+1 for the regular image
     device_ret.row = ww.row * (GENOMIC_DATA_COUNT + 1);
     device_ret.col = 1;
-	cutilSafeCall(cudaMalloc((void**)&device_ret.data, sizeof(unsigned int) * ww.row));
-    cutilSafeCall(cudaMemset((void*)device_ret.data, 0, sizeof(unsigned int) * ww.row));
+	cutilSafeCall(cudaMalloc((void**)&device_ret.data, sizeof(unsigned int) * device_ret.row));
+    cutilSafeCall(cudaMemset((void*)device_ret.data, 0, sizeof(unsigned int) * device_ret.row));
 
     device_indices.row = DATA_SIZE;
     device_indices.col = 1;
@@ -339,6 +339,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col);
 
+    cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row);
     //this is related to IMAGE_MXN
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
     cudaMemcpy(a,device_ww2.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
@@ -408,7 +409,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
 	generateSplitImage(genome_index, device_split_pbo);
     printf("Total Time: %f\n\n", total_time);
-//#if DEBUG_PRINT
+#if DEBUG_PRINT
     uint count[4096];
     cutilSafeCall(cudaMemcpy(count, device_ret.data, sizeof(int) * 4096, cudaMemcpyDeviceToHost));
 	for (int i=0; i<4; i++){
@@ -424,7 +425,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 		printf("\n");
 	}
 
-//#endif
+#endif
 	host_r++;
 	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));
 	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
