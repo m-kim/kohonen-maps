@@ -314,7 +314,7 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 //    }
 }
 
-__global__ void expandImage(uint *im, const uint *ret)
+__global__ void expandConstantImage(uint *im, const uint *ret)
 {
 
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -375,7 +375,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 		cublasSgemv('N', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_ww.col,
 				1,
-				0,
+				-1,
 				device_ww2.data,
 				1);
 		cudaThreadSynchronize();
@@ -397,7 +397,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cudaThreadSynchronize();
 	block = dim3(16,16);
 	grid = dim3(IMAGE_M/16,IMAGE_N/16);
-	expandImage<<<grid,block>>>(device_regular_pbo, device_ret.data + 4 * IMAGE_MxN);
+	expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + 4 * IMAGE_MxN);
 
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
 
