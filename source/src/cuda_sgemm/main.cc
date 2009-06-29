@@ -30,7 +30,7 @@ extern "C" int genome_index = 0;
 extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
 
 int split_som_window = 0, som_window = 0;
-float expansion = 5;
+float expansion = 4;
 float bin1, bin2;
 uint *d_split_output;
 uchar4 **d_regular_output;
@@ -192,7 +192,6 @@ static void normalize(MATRIX<MATRIX_TYPE> mat)
 //N == 10000, S == 20
 int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<MATRIX_TYPE> pc2, MATRIX<MATRIX_TYPE> x)
 {
-
 	float center_vec[F];
 	for (int i=0; i<S; i++){
 		for (int cv_f = 0; cv_f < F; cv_f++){
@@ -452,19 +451,21 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 	int row = 0;
 	if (!file.good())
 		printf("file bad!\n");
-	while (file.good()){
-		//getline will retrieve 20000 numbers...
-		getline(file, str);
-		if (isdigit(str.c_str()[0])){
-			char *tok = strtok((char*)str.c_str(), ",");
-			for (int i=0; i<VECTOR_SIZE; i++){
-				//16 rows by 20000 cols in the file
-				x.data[offset + row + x.col * i] = atof(tok);
-				tok = strtok(NULL, " ");
-			}
-			labels[offset + row] = label_value;
-			row++;
+	while (getline(file, str)){
+
+		//if (isdigit(str.c_str()[0])){
+		char *tok = strtok((char*)str.c_str(), " ");
+
+		for (int i=0; i<VECTOR_SIZE/2; i++){
+			//16 rows by 20000 cols in the file
+			x.data[offset + row + x.col * 2 * i] = sin(3.1415927 * atof(tok) / 180.0f);
+			x.data[offset + row + x.col * (2 * i + 1)] = cos(3.1415927 * atof(tok) / 180.0f);
+			tok = strtok(NULL, " ");
 		}
+		labels[offset + row] = label_value;
+		row++;
+
+		//}
 	}
 	printf("row: %d\n",row);
 	file.close();
@@ -506,11 +507,6 @@ int main( int argc, char **argv )
 	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
 	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
-	for (int i=0; i<20; i++){
-		for (int j=0; j<1000; j++){
-			labels[i * 1000 + j] = i;
-		}
-	}
 
 	std::ifstream file;
 	char filename[100];
@@ -522,7 +518,15 @@ int main( int argc, char **argv )
 //	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
 //	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
 
-	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+	getFile("angles_38073.set", x, labels, 0, 0);
+
+//	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+//	for (int i=0; i<20; i++){
+//		for (int j=0; j<1000; j++){
+//			labels[i * 1000 + j] = i;
+//		}
+//	}
+
 	normalize(x);
 	pca(x, pc1,pc2);
 
@@ -611,8 +615,8 @@ int main( int argc, char **argv )
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
-
-    runCuda((uint*)d_regular_output, d_split_output);
+	//for (int i=0; i<host_T; i++)
+    	runCuda((uint*)d_regular_output, d_split_output);
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 

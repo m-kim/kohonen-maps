@@ -149,15 +149,14 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 
 __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_index)
 {
-	uint i = threadIdx.x + blockDim.x * blockIdx.x;
-	uint j = threadIdx.y + blockDim.y * blockIdx.y;
-	uint index = i * IMAGE_N + j;
+	uint tidx = threadIdx.x + blockDim.x * blockIdx.x;
+	uint tidy = threadIdx.y + blockDim.y * blockIdx.y;
+	uint index = tidx * IMAGE_N + tidy;
 
 	int genome[GENOMIC_DATA_COUNT];
-	genome[0] = 0;
-	genome[1] = 0;
-	genome[2] = 0;
-	genome[3] = 0;
+
+	for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+		genome[i] = 0;
 
 	for (int i=0; i<DATA_SIZE; i++){
 		if (indices[i] == index){
@@ -165,16 +164,29 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 		}
 	}
 
-	if (genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
-		im[index] = genome[g_index];
-	else if (genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
-		im[index] = genome[g_index];
-	else if (genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
-		im[index] = genome[g_index];
-	else if (genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
-		im[index] = genome[g_index];
-	else
-		im[index] = 0;
+	int count = 0;
+	for (int i=0; i<GENOMIC_DATA_COUNT; i++){
+		count = 0;
+		for (int j=0; j<GENOMIC_DATA_COUNT; j++){
+			if (i != j)
+				count += (genome[i] > genome[j]);
+		}
+		if (count == (GENOMIC_DATA_COUNT - 1)){
+			im[index] = genome[g_index];
+			return;
+		}
+	}
+	im[index] = 0;
+//	if (genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
+//		im[index] = genome[g_index];
+//	else if (genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
+//		im[index] = genome[g_index];
+//	else if (genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
+//		im[index] = genome[g_index];
+//	else if (genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
+//		im[index] = genome[g_index];
+//	else
+//		im[index] = 0;
 }
 
 __global__ void expandSplitImage(uint *im, const uint *ret)
@@ -210,8 +222,8 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	}
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
-	host_beta[0] = 6;
-	host_beta[1] = 6;
+	host_beta[0] = 10;
+	host_beta[1] = 10;
 	host_alpha[0] = .6;
 	host_alpha[1] = .6;
 
@@ -356,12 +368,14 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cudaThreadSynchronize();
  	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-    for (int i=0; i<DATA_SIZE; i++){
+    for (int i=0; i<DATA_SIZE; i++){\
+    	if (!(i % 10000))
+    		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('N', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_ww.col,
 				1,
-				-1,
+				0,
 				device_ww2.data,
 				1);
 		cudaThreadSynchronize();
@@ -387,8 +401,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
 
-    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
-    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
+//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+//    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
     cudaThreadSynchronize();
     printf("build split image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
@@ -427,8 +441,9 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
 #endif
 	host_r++;
-	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - (host_r/host_T)));
+	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - ((float)host_r/host_T)));
 	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
 
+	printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
    	return EXIT_SUCCESS;
 }
