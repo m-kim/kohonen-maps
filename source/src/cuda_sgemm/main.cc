@@ -38,7 +38,7 @@ uchar4 **d_regular_output;
 GLuint split_pbo        = 0;          // OpenGL pixel buffer object
 GLuint pbo = 0;
 GLuint displayRegTex = 0, displaySplitTex = 0;
-unsigned int width = 512, height = 512;
+unsigned int width = 1024, height = 512;
 
 float stdDev(const MATRIX<MATRIX_TYPE> &mat)
 {
@@ -207,7 +207,7 @@ int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<M
 }
 
 // display results using OpenGL (called by GLUT)
-void display1()
+void display()
 {
 	glutSetWindow(som_window);
 
@@ -219,7 +219,7 @@ void display1()
 	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
 	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
 	glTexSubImage2D(GL_TEXTURE_TYPE,
-							0, 0, 0, width, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+							0, 0, 0, width/2, height, GL_BGRA, GL_UNSIGNED_BYTE, 0);
 	glutReportErrors();
 	glEnable(GL_TEXTURE_TYPE);
 
@@ -227,9 +227,27 @@ void display1()
 	glDisable(GL_DEPTH_TEST);
 	glBegin(GL_QUADS);
 	glTexCoord2f(0    , height);  glVertex2f(0, 0);
-	glTexCoord2f(width, height);  glVertex2f(1, 0);
-	glTexCoord2f(width, 0     );  glVertex2f(1, 1);
+	glTexCoord2f(width/2, height);  glVertex2f(1, 0);
+	glTexCoord2f(width/2, 0     );  glVertex2f(1, 1);
 	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
+	glEnd();
+	glDisable(GL_TEXTURE_TYPE);
+
+	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
+	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
+	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+	glTexSubImage2D(GL_TEXTURE_TYPE,
+					0, 0, 0, width/2, height, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
+	glEnable(GL_TEXTURE_TYPE);
+
+	// draw textured quad
+	glDisable(GL_DEPTH_TEST);
+//	glColor3f(0,1,0);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0    , height);  glVertex2f(1, 0);
+	glTexCoord2f(width/2, height);  glVertex2f(2, 0);
+	glTexCoord2f(width/2, 0     );  glVertex2f(2, 1);
+	glTexCoord2f(0    , 0     );  glVertex2f(1, 1);
 	glEnd();
 	glDisable(GL_TEXTURE_TYPE);
 
@@ -239,67 +257,14 @@ void display1()
 
 }
 
-// display results using OpenGL (called by GLUT)
-void display2()
-{
-	glutSetWindow(split_som_window);
-	// display results
-	glClear(GL_COLOR_BUFFER_BIT);
 
-	// download image from PBO to OpenGL texture
-	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
-	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
-	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-	glTexSubImage2D(GL_TEXTURE_TYPE,
-					0, 0, 0, width, height, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
-	glEnable(GL_TEXTURE_TYPE);
-
-	// draw textured quad
-	glDisable(GL_DEPTH_TEST);
-	glBegin(GL_QUADS);
-	glTexCoord2f(0    , height);  glVertex2f(0, 0);
-	glTexCoord2f(width, height);  glVertex2f(1, 0);
-	glTexCoord2f(width, 0     );  glVertex2f(1, 1);
-	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
-	glEnd();
-	glDisable(GL_TEXTURE_TYPE);
-
-
-    glutSwapBuffers();
-    glutReportErrors();
-
-}
-
-void keyboard1(unsigned char key, int /*x*/, int /*y*/)
+void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
     switch(key) {
     case 'n':
     case 'N':
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-
-        runCuda((uint*)d_regular_output, d_split_output);
-       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
-       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
-
-    	break;
-	case 27:
-		exit(0);
-		break;
-
-	default:
-		break;
-    }
-    glutPostRedisplay();
-}
-
-void keyboard2(unsigned char key, int /*x*/, int /*y*/)
-{
-    switch(key) {
-    case 'n':
-    case 'N':
-       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
 
         runCuda((uint*)d_regular_output, d_split_output);
        	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
@@ -324,6 +289,7 @@ void keyboard2(unsigned char key, int /*x*/, int /*y*/)
     }
     glutPostRedisplay();
 }
+
 void initPBO()
 {
     if (pbo) {
@@ -399,7 +365,7 @@ void reshape(int x, int y)
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    glOrtho(0.0, 2.0, 0.0, 1.0, 0.0, 1.0);
 }
 void idle()
 {
@@ -414,16 +380,12 @@ void initGL( int argc, char **argv )
     glutInitWindowSize(width, height);
     som_window = glutCreateWindow("CUDA SOM");
 
-    glutDisplayFunc(display1);
-    glutKeyboardFunc(keyboard1);
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
 //    glutMouseFunc(mouse);
 //    glutMotionFunc(motion);
     glutReshapeFunc(reshape);
 
-//    split_som_window = glutCreateWindow("CUDA Split Luminance SOM");
-//    glutDisplayFunc(display2);
-//    glutReshapeFunc(reshape);
-//    glutKeyboardFunc(keyboard2);
 
     glutIdleFunc(idle);
 
@@ -456,16 +418,50 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 		//if (isdigit(str.c_str()[0])){
 		char *tok = strtok((char*)str.c_str(), " ");
 
-		for (int i=0; i<VECTOR_SIZE/2; i++){
-			//16 rows by 20000 cols in the file
-			x.data[offset + row + x.col * 2 * i] = sin(3.1415927 * atof(tok) / 180.0f);
-			x.data[offset + row + x.col * (2 * i + 1)] = cos(3.1415927 * atof(tok) / 180.0f);
-			tok = strtok(NULL, " ");
+		//16 rows by 20000 cols in the file
+		float value1 = atof(tok);
+
+		x.data[offset + row ] = sin(3.1415927 * value1 / 180.0f);
+		x.data[offset + row + x.col] = cos(3.1415927 * value1 / 180.0f);
+
+		tok = strtok(NULL, " ");
+		float value2 = atof(tok);
+
+		x.data[offset + row + x.col * 2] = sin(3.1415927 * value2 / 180.0f);
+		x.data[offset + row + x.col * 3] = cos(3.1415927 * value2 / 180.0f);
+
+		if (value1 < 0 && value1 > -180){
+			if ( value2 > -100 && value2 < 50){
+				labels[offset + row] = 8;
+			}
+			else if (value2 > 50 && value2 < 100){
+				labels[offset + row] = 1;
+			}
+			else if (value2 > 50 && value2 < 180){
+				labels[offset + row] = 2;
+			}
+			else if (value2 > -180 && value2 < -100){
+				labels[offset + row] = 3;
+			}
 		}
+		else if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
+			labels[offset + row] = 4;
+		}
+		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
+			labels[offset + row] = 5;
+		}
+		else if (value1 < 180 && value1 > 50 && value2 > 100 && value2 < 180){
+			labels[offset + row] = 6;
+		}
+		else if (value1 < 180 && value1 > 0 && value2 > -180 && value2 < 110){
+			labels[offset + row] = 7;
+		}
+		else
+			labels[offset + row] = 0;
+
+
 		labels[offset + row] = label_value;
 		row++;
-
-		//}
 	}
 	printf("row: %d\n",row);
 	file.close();
@@ -518,14 +514,14 @@ int main( int argc, char **argv )
 //	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
 //	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
 
-	getFile("angles_38073.set", x, labels, 0, 0);
+//	getFile("angles_38073.set", x, labels, 0, 0);
 
-//	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
-//	for (int i=0; i<20; i++){
-//		for (int j=0; j<1000; j++){
-//			labels[i * 1000 + j] = i;
-//		}
-//	}
+	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+	for (int i=0; i<20; i++){
+		for (int j=0; j<1000; j++){
+			labels[i * 1000 + j] = i;
+		}
+	}
 
 	normalize(x);
 	pca(x, pc1,pc2);
@@ -616,7 +612,7 @@ int main( int argc, char **argv )
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
 	//for (int i=0; i<host_T; i++)
-    	runCuda((uint*)d_regular_output, d_split_output);
+	runCuda((uint*)d_regular_output, d_split_output);
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 

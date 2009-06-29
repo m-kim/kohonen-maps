@@ -220,6 +220,52 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 		color[i + 3] = (i + 128) % 256;
 		color[i] = (i + 192) % 256;
 	}
+
+	color[0] = 0;
+	color[1] = 0;
+	color[2] = 0;
+	color[3] = 0;
+
+	color[4] = 255;
+	color[5] = 0;
+	color[6] = 0;
+	color[7] = 0;
+
+	color[8] = 0;
+	color[9] = 255;
+	color[10] = 0;
+	color[11] = 0;
+
+	color[12] = 0;
+	color[13] = 0;
+	color[14] = 255;
+	color[15] = 0;
+
+	color[16] = 255;
+	color[17] = 255;
+	color[18] = 0;
+	color[19] = 0;
+
+	color[20] = 255;
+	color[21] = 0;
+	color[22] = 255;
+	color[23] = 0;
+
+	color[24] = 0;
+	color[25] = 255;
+	color[26] = 255;
+	color[27] = 0;
+
+	color[28] = 128;
+	color[29] = 128;
+	color[30] = 128;
+	color[31] = 0;
+
+	color[32] = 255;
+	color[33] = 255;
+	color[34] = 255;
+	color[35] = 0;
+
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
 	host_beta[0] = 10;
@@ -356,19 +402,10 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
     cudaMemcpy(a,device_ww2.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
 
-#if DEBUG_PRINT
-    for (int i=0; i<IMAGE_N; i++){
-    	for (int j=0; j<IMAGE_M; j++){
-    		printf("%f ", a[i * IMAGE_M + j]);
-    	}
-    	printf("\n");
-    }
-#endif
-
     cudaThreadSynchronize();
  	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-    for (int i=0; i<DATA_SIZE; i++){\
+    for (int i=0; i<DATA_SIZE; i++){
     	if (!(i % 10000))
     		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
@@ -393,16 +430,18 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     block = dim3(16,16);
     grid = dim3(2,2);
-    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data + 4 * IMAGE_MxN,device_labels.data,device_indices.data);
+    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
+    											device_labels.data,device_indices.data);
 	cudaThreadSynchronize();
 	block = dim3(16,16);
 	grid = dim3(IMAGE_M/16,IMAGE_N/16);
-	expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + 4 * IMAGE_MxN);
+	expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
 
-//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
-//    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
+    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
+
     cudaThreadSynchronize();
     printf("build split image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
