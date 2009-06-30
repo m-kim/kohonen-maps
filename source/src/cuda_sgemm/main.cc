@@ -74,29 +74,29 @@ float * mean(const MATRIX<MATRIX_TYPE> dd)
 			ret[i] += dd.data[i * dd.row + j];
 		}
 		ret[i] = ret[i] / dd.row;
+
 	}
 	return ret;
 }
 void cov(const MATRIX<MATRIX_TYPE> dd, float *covariance)
 {
-        float *mean_val = mean(dd);
-        for(int i=0; i<dd.col; i++){
-                for (int j=0; j<dd.col;j++){
-                        covariance[i * dd.col + j] = 0;
-                        for (int k=0; k < dd.row; k++){
-                                covariance[i * dd.col + j] += (dd.data[i * dd.row + k] - mean_val[i]) * (dd.data[j * dd.row + k] - mean_val[j]);
-                        }
-                        covariance[i * dd.col + j] /= (dd.row -  1);
+	float *mean_val = mean(dd);
+	for(int i=0; i<dd.col; i++){
+		for (int j=0; j<dd.col;j++){
+				covariance[i * dd.col + j] = 0;
+				for (int k=0; k < dd.row; k++){
+						covariance[i * dd.col + j] += (dd.data[i * dd.row + k] - mean_val[i]) * (dd.data[j * dd.row + k] - mean_val[j]);
+				}
+				covariance[i * dd.col + j] /= (dd.row - 1);
 //#if DEBUG_PRINT
-                        printf("%f ", covariance[i * dd.col + j]);
+				printf("%f ", covariance[i * dd.col + j]);
 //#endif
-                }
+		}
 //#if DEBUG_PRINT
-                printf("\n");
+		printf("\n");
 //#endif
-        }
-
-        delete mean_val;
+	}
+	delete mean_val;
 }
 
 
@@ -111,6 +111,7 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 	float *cov_mat = (float*)malloc(sizeof(float) * x.col * x.col);
 
 	cov(x,cov_mat);
+
 	char JOBU = 'N';
 	char JOBV = 'A';
 
@@ -181,11 +182,14 @@ static void normalize(MATRIX<MATRIX_TYPE> mat)
 	for (int i=0;i<mat.row; i++){
 		sum = 0;
 		for (int j=0; j<mat.col; j++){
-			mat.data[i * mat.col + j] = fabs(mat.data[i * mat.col + j]);
-			sum += mat.data[i * mat.col + j];
+			mat.data[i + mat.row * j] = fabs(mat.data[i + mat.row * j]);
+			sum += mat.data[i + mat.row * j];
+			if (i<1)
+				printf("sum %f\n",fabs(mat.data[i + mat.row * j]));
+
 		}
 		for (int j=0;j<mat.col; j++){
-			mat.data[i * mat.col + j] /= sum;
+			mat.data[i + mat.row * j] /= sum;
 		}
 	}
 }
@@ -429,12 +433,12 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 		float value2 = atof(tok);
 
 
-		x.data[offset + row ] = sin(3.1415927 * value1 / 180.0f);
-		x.data[offset + row + x.row] = cos(3.1415927 * value1 / 180.0f);
-		x.data[offset + row + x.row * 2] = sin(3.1415927 * value2 / 180.0f);
-		x.data[offset + row + x.row * 3] = cos(3.1415927 * value2 / 180.0f);
+		x.data[offset + row ] = cos(3.1415927 * value1 / 180.0f);
+		x.data[offset + row + x.row] = sin(3.1415927 * value1 / 180.0f);
+		x.data[offset + row + x.row * 2] = cos(3.1415927 * value2 / 180.0f);
+		x.data[offset + row + x.row * 3] = sin(3.1415927 * value2 / 180.0f);
 
-
+		counter++;
 		if (value1 < 0 && value1 > -180){
 			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
 						labels[offset + row] = 4;
@@ -532,8 +536,8 @@ int main( int argc, char **argv )
 	normalize(x);
 	pca(x, pc1,pc2);
 
-	printf("%f %f \n", pc1.data[0], pc1.data[1]);
-	printf("%f %f \n", pc2.data[0], pc2.data[1]);
+	printf("%f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
+	printf("%f %f %f %f\n", pc2.data[0], pc2.data[1],pc2.data[2], pc2.data[3]);
 
 	//mean0 == dm
 	//dm should be shape = (16,)
