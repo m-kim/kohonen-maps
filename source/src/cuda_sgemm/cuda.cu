@@ -6,10 +6,11 @@
 
 extern "C" int genome_index;
 
-MATRIX<MATRIX_TYPE> device_ww, device_data, device_ww2, device_save, device_sum, device_scratch;
+MATRIX<MATRIX_TYPE> device_ww2, device_save, device_sum, device_scratch;
 MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
+ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> device_ww, device_data;
 
-float* a;
+ORDERED_MATRIX<float,COLUMN_MAJOR> tmp;
 unsigned int *ret, *indices;
 
 float host_alpha[2];
@@ -24,7 +25,7 @@ __global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
 
 	for (int j=0; j<VECTOR_SIZE; j++){
 		//this shouldn't be backwards...*sigh*
-		ww2[i] += pow(ww.data[j * ww.row + i],2);
+		ww2[i] += pow(ww.data[i * ww.row + j ],2);
 	}
 }
 
@@ -239,9 +240,9 @@ extern "C" void cleanup()
     cudaFree (device_ww2.data);
 	cudaFree(device_indices.data);
 	cudaFree(device_labels.data);
-	delete a, ret, indices;
+	delete  ret, indices;
 }
-extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
 {
     //setup color
 	unsigned char color[COLOR_SIZE * 4];
@@ -341,13 +342,6 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     printf("setup matrix ww %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_ww.data, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_ww.data, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
-    for (int i=0; i<ww.row; i++){
-    	for (int j=0; j<ww.col; j++){
-    		cutilSafeCall(cudaMemcpy(
-    				device_ww.data  + (j * ww.row + i),
-    				ww.data + (i * ww.col + j), sizeof(float), cudaMemcpyHostToDevice));
-    	}
-    }
 
 	device_ww2.row = IMAGE_N;
 	device_ww2.col = IMAGE_M;
@@ -370,10 +364,6 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     device_save.col = device_ww2.col;
     device_save.data = device_scratch.data;
 
-    a = (float *)malloc (ww.row * data.row * sizeof (*a));
-    if (!a) {
-        printf ("host memory allocation failed");
-    }
 
 	ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
 	indices = (uint*)malloc(sizeof(uint) * data.row);
@@ -381,7 +371,7 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     device_data.row = data.row;
     device_data.col = data.col;
     printf("setup matrix data %d %d\n", device_data.row, device_data.col);
-    cutilSafeCall(cudaMalloc((void**)&device_data, sizeof(float) * device_data.row*device_data.col));
+    cutilSafeCall(cudaMalloc((void**)&device_data.data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
 //    for (int i=0; i<data.row; i++){
 //    	for (int j=0; j<data.col; j++){
@@ -412,22 +402,23 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row);
     //this is related to IMAGE_MXN
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
-    cudaMemcpy(a,device_ww.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
-	for (int i=0; i<IMAGE_M; i++){
-		for (int j=0; j<IMAGE_N; j++){
-			printf("%f ", a[i * IMAGE_N + j]);
-		}
-		printf("\n");
-	}
     cudaThreadSynchronize();
- 	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
+    ORDERED_MATRIX<float, COLUMN_MAJOR> tmp;
+    tmp.row = device_data.row;
+    tmp.col = device_data.col;
+    tmp.data = (float*)malloc(tmp.row* tmp.col * sizeof(float));
+
+    cudaMemcpy(tmp.data,device_data.data,sizeof(int) * tmp.row * tmp.col, cudaMemcpyDeviceToHost);
+	tmp.print();
+
+    cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<DATA_SIZE; i++){
-    	if (!(i % 10000))
+    	if ( !(i % 10000) )
     		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
-		cublasSgemv('N', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
-				device_data.data + i * device_ww.col,
+		cublasSgemv('N', device_ww.col, device_ww.row, 2, device_ww.data, device_ww.col,
+				device_data.data + i * device_ww.row,
 				1,
 				-1,
 				device_ww2.data,

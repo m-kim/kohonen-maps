@@ -15,7 +15,7 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" void cleanup();
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
@@ -53,19 +53,19 @@ float stdDev(const MATRIX<MATRIX_TYPE> &mat)
 	for (int i=0; i<mat.row; i++){
 		sum += pow(mat.data[i] - mean_x, 2);
 	}
-	return sqrt(sum / mat.row);
+	return sqrt(sum / (mat.row - 1));
 }
 
-float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
+float dot(MATRIX<MATRIX_TYPE> one, ORDERED_MATRIX<MATRIX_TYPE,COLUMN_MAJOR> two, int col)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
-		sum += one.data[i] * two.data[i * two.col + col ];
+		sum += one.data[i] * two(col,i);//.data[i * two.col + col ];
 	}
 	return sum;
 }
 
-float * mean(const MATRIX<MATRIX_TYPE> dd)
+float * mean(const ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> dd)
 {
 	//get the mean value for each row...
 	float *ret = (float*)malloc(sizeof(float) * dd.col);
@@ -73,21 +73,21 @@ float * mean(const MATRIX<MATRIX_TYPE> dd)
 	for(int i=0; i<dd.col;i++){
 		ret[i] = 0.0;
 		for(int j=0; j<dd.row; j++){
-			ret[i] += dd.data[i * dd.row + j];
+			ret[i] += dd(j,i);
 		}
 		ret[i] = ret[i] / dd.row;
 
 	}
 	return ret;
 }
-void cov(const MATRIX<MATRIX_TYPE> dd, float *covariance)
+void cov(const ORDERED_MATRIX<MATRIX_TYPE,COLUMN_MAJOR> dd, float *covariance)
 {
 	float *mean_val = mean(dd);
 	for(int i=0; i<dd.col; i++){
 		for (int j=0; j<dd.col;j++){
 				covariance[i * dd.col + j] = 0;
 				for (int k=0; k < dd.row; k++){
-						covariance[i * dd.col + j] += (dd.data[i * dd.row + k] - mean_val[i]) * (dd.data[j * dd.row + k] - mean_val[j]);
+						covariance[i * dd.col + j] += (dd(k,i) - mean_val[i]) * (dd(k,j) - mean_val[j]);
 				}
 				covariance[i * dd.col + j] /= (dd.row - 1);
 //#if DEBUG_PRINT
@@ -106,7 +106,7 @@ void cov(const MATRIX<MATRIX_TYPE> dd, float *covariance)
 //the matrix pumped out of cov is singular
 //however, the matrix returned will be in column major order
 //so, that needs to be taken into account...
-void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pca2)
+void pca(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pca2)
 {
 	printf("Entering PCA...\n");
 	//16 x 20000 means a 16x16 covariance matrix
@@ -178,13 +178,13 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 
 //normalizes along the column
 //ie if its a 16 x 20000 matrix, it normalizes the 16 vector
-static void normalize(MATRIX<MATRIX_TYPE> mat)
+static void normalize(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> mat)
 {
 	float sum = 0;
 	for (int i=0;i<mat.row; i++){
 		sum = 0;
 		for (int j=0; j<mat.col; j++){
-			mat.data[i + mat.row * j] = fabs(mat.data[i + mat.row * j]);
+			mat(i,j) = fabs(mat(i,j));//.data[i + mat.row * j]);
 			sum += mat.data[i + mat.row * j];
 			if (i<1)
 				printf("sum %f\n",fabs(mat.data[i + mat.row * j]));
@@ -453,7 +453,7 @@ void initGL( int argc, char **argv )
     }
 }
 
-void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset, uint label_value)
+void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> x, uint *labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];
@@ -514,7 +514,7 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 
 		row++;
 	}
-	printf("row: %d\n",row);
+	printf("row: %d %f\n",row, x(0,0));
 	file.close();
 
 	printf("%d \n", counter);
@@ -535,7 +535,7 @@ int main( int argc, char **argv )
 	pc2.row = VECTOR_SIZE;
 	pc2.col = 1;
 
-	MATRIX<MATRIX_TYPE> x;
+	ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> x;
 	x.row = DATA_SIZE;
 	x.col =  VECTOR_SIZE;
 	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
@@ -550,9 +550,9 @@ int main( int argc, char **argv )
 	pd2.col = 1;
 	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
 
-	MATRIX<float> data_dm;
-	data_dm.row = VECTOR_SIZE;
-	data_dm.col =  DATA_SIZE;
+	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm;
+	data_dm.row = DATA_SIZE;
+	data_dm.col =  VECTOR_SIZE;
 	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
 	uint *labels = (uint*)malloc(sizeof(uint) * x.row);
@@ -579,8 +579,8 @@ int main( int argc, char **argv )
 	normalize(x);
 	pca(x, pc1,pc2);
 
-	printf("%f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
-	printf("%f %f %f %f\n", pc2.data[0], pc2.data[1],pc2.data[2], pc2.data[3]);
+	printf("pc1: %f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
+	printf("pc2: %f %f %f %f\n", pc2.data[0], pc2.data[1],pc2.data[2], pc2.data[3]);
 
 	//mean0 == dm
 	//dm should be shape = (16,)
@@ -597,9 +597,9 @@ int main( int argc, char **argv )
 
 	}
 
-	for (int i=0; i<data_dm.col; i++){
-		for (int j=0; j<data_dm.row; j++){
-			data_dm.data[j * data_dm.col + i] = x.data[j + x.col * i] - dm[j];
+	for (int i=0; i<data_dm.row; i++){
+		for (int j=0; j<data_dm.col; j++){
+			data_dm(i,j) = x(i,j) - dm[j];
 		}
 		pd1.data[i] = dot(pc1, data_dm,i);
 		pd2.data[i] = dot(pc2, data_dm,i);
@@ -636,20 +636,16 @@ int main( int argc, char **argv )
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	MATRIX<float> ww;
+	ORDERED_MATRIX<float, COLUMN_MAJOR> ww;
 	ww.data = (float*)malloc(sizeof(float) * IMAGE_M * IMAGE_N * VECTOR_SIZE);
-	ww.row = IMAGE_M * IMAGE_N;
-	ww.col = VECTOR_SIZE;
+	ww.row = VECTOR_SIZE;
+	ww.col = IMAGE_M * IMAGE_N;
 
-	for (int i=0; i<VECTOR_SIZE; i++){
-		printf("%f ", dm[i]);
-	}
-	printf("\n");
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_N; i++){
 		for (int j=0; j<IMAGE_M; j++){
 			for (int k=0; k<VECTOR_SIZE; k++){
-				ww.data[k + (i * IMAGE_M + j) * VECTOR_SIZE ] = dm[k] + b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2);
+				ww(k,i + IMAGE_M * j) = dm[k] + b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2);
 			}
 		}
 	}
