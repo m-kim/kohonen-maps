@@ -201,6 +201,37 @@ __global__ void expandSplitImage(uint *im, const uint *ret)
 	}
 }
 
+__global__ void expandLogImage(unsigned char *im, const uint *ret)
+{
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	for (int i=0; i<16; i++){
+		for (int j=0; j<16; j++){
+			im[(y * 16 + j) * 512 + x * 16 + i] = logf(ret[y * IMAGE_M + x]);
+		}
+	}
+}
+__global__ void expandConstantImage(uint *im, const uint *ret)
+{
+
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	for (int i=0; i<16; i++){
+		for (int j=0; j<16; j++){
+			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]] * ret[y * IMAGE_M + x];
+		}
+	}
+}
+
+extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo)
+{
+	dim3 block(16,16);
+	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	expandSplitImage<<<grid,block>>>(device_split_pbo, device_ret.data + g_index * IMAGE_MxN);
+}
+
 extern "C" void cleanup()
 {
     cudaFree (device_ww.data);
@@ -210,7 +241,7 @@ extern "C" void cleanup()
 	cudaFree(device_labels.data);
 	delete a, ret, indices;
 }
-extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo)
+extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
 {
     //setup color
 	unsigned char color[COLOR_SIZE * 4];
@@ -276,6 +307,7 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 
 	cudaMemset(device_regular_pbo, 128, sizeof(unsigned int) * 512 * 512);
 	cudaMemset(device_split_pbo, 128, sizeof(unsigned int) * 512 * 512);
+	cudaMemset(device_log_pbo, 128, sizeof(unsigned char) * 512 * 512);
 
 	device_labels.row = data.row;
 	device_labels.col = 1;
@@ -360,27 +392,7 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 //    }
 }
 
-__global__ void expandConstantImage(uint *im, const uint *ret)
-{
-
-	int x = threadIdx.x + blockDim.x * blockIdx.x;
-	int y = threadIdx.y + blockDim.y * blockIdx.y;
-
-	for (int i=0; i<16; i++){
-		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]] * ret[y * IMAGE_M + x];
-		}
-	}
-}
-
-extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo)
-{
-	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
-	expandSplitImage<<<grid,block>>>(device_split_pbo, device_ret.data + g_index * IMAGE_MxN);
-}
-
-extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo)
+extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
 	unsigned int timer;
     cutCreateTimer(&timer);
@@ -400,8 +412,13 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row);
     //this is related to IMAGE_MXN
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
-    cudaMemcpy(a,device_ww2.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
-
+    cudaMemcpy(a,device_ww.data,sizeof(int) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToHost);
+	for (int i=0; i<IMAGE_M; i++){
+		for (int j=0; j<IMAGE_N; j++){
+			printf("%f ", a[i * IMAGE_N + j]);
+		}
+		printf("\n");
+	}
     cudaThreadSynchronize();
  	cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
@@ -442,6 +459,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     for (int i=0; i<GENOMIC_DATA_COUNT; i++)
     	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
 
+
     cudaThreadSynchronize();
     printf("build split image %s\n", cudaGetErrorString(cudaGetLastError()));
     cutStopTimer(timer);
@@ -458,23 +476,22 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cudaThreadSynchronize();
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
 
+	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+
 	cudaThreadSynchronize();
 
 	generateSplitImage(genome_index, device_split_pbo);
+
+
     printf("Total Time: %f\n\n", total_time);
 #if DEBUG_PRINT
-    uint count[4096];
-    cutilSafeCall(cudaMemcpy(count, device_ret.data, sizeof(int) * 4096, cudaMemcpyDeviceToHost));
-	for (int i=0; i<4; i++){
-		int counter = 0;
-		for (int j=0; j<32; j++){
-			for (int k=0; k<32; k++){
-				printf("%d ", count[i * 1024 + j * 32 + k]);
-				counter += count[i * 1024 + j * 32 + k];
-			}
-			printf("\n");
+    unsigned char count[262144];
+    cutilSafeCall(cudaMemcpy(count, device_log_pbo, sizeof(unsigned char) * 262144, cudaMemcpyDeviceToHost));
+	int counter = 0;
+	for (int i=0; i<512; i++){
+		for (int j=0; j<512; j++){
+			printf("%d ", count[i * 512 + j]);
 		}
-		printf(" %d\n", counter);
 		printf("\n");
 	}
 
