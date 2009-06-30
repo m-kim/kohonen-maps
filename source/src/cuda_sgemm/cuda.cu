@@ -277,10 +277,10 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
 	cudaMemset(device_regular_pbo, 128, sizeof(unsigned int) * 512 * 512);
 	cudaMemset(device_split_pbo, 128, sizeof(unsigned int) * 512 * 512);
 
-	device_labels.row = data.col;
+	device_labels.row = data.row;
 	device_labels.col = 1;
-	cutilSafeCall(cudaMalloc((void**)&device_labels.data, sizeof(uint) * data.col));
-	cutilSafeCall(cudaMemcpy(device_labels.data, labels, sizeof(uint) * data.col, cudaMemcpyHostToDevice));
+	cutilSafeCall(cudaMalloc((void**)&device_labels.data, sizeof(uint) * data.row));
+	cutilSafeCall(cudaMemcpy(device_labels.data, labels, sizeof(uint) * data.row, cudaMemcpyHostToDevice));
 
 	device_ww_count.row = ww.row;
 	device_ww_count.col = 1;
@@ -338,13 +338,13 @@ extern "C" void setupCuda(MATRIX<MATRIX_TYPE> ww,  MATRIX<MATRIX_TYPE> data, uin
     device_save.col = device_ww2.col;
     device_save.data = device_scratch.data;
 
-    a = (float *)malloc (ww.row * data.col * sizeof (*a));
+    a = (float *)malloc (ww.row * data.row * sizeof (*a));
     if (!a) {
         printf ("host memory allocation failed");
     }
 
 	ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
-	indices = (uint*)malloc(sizeof(uint) * data.col);
+	indices = (uint*)malloc(sizeof(uint) * data.row);
 
     device_data.row = data.row;
     device_data.col = data.col;

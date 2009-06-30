@@ -66,38 +66,39 @@ float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
 float * mean(const MATRIX<MATRIX_TYPE> dd)
 {
 	//get the mean value for each row...
-	float *ret = (float*)malloc(sizeof(float) * dd.row);
+	float *ret = (float*)malloc(sizeof(float) * dd.col);
 
-	for(int i=0; i<dd.row;i++){
+	for(int i=0; i<dd.col;i++){
 		ret[i] = 0.0;
-		for(int j=0; j<dd.col; j++){
-			ret[i] += dd.data[i + dd.row * j];
+		for(int j=0; j<dd.row; j++){
+			ret[i] += dd.data[i * dd.row + j];
 		}
-		ret[i] = ret[i] / dd.col;
+		ret[i] = ret[i] / dd.row;
 	}
 	return ret;
 }
 void cov(const MATRIX<MATRIX_TYPE> dd, float *covariance)
 {
-	float *mean_val = mean(dd);
-	for(int i=0; i<dd.row; i++){
-		for (int j=0; j<dd.row;j++){
-			covariance[i + dd.row * j] = 0;
-			for (int k=0; k < dd.col; k++){
-				covariance[i + dd.row * j] += (dd.data[i + dd.row * k] - mean_val[i]) * (dd.data[j + dd.row * k] - mean_val[j]);
-			}
-			covariance[i + dd.row * j] /= (dd.col -  1);
-#if DEBUG_PRINT
-			printf("%f ", covariance[i * dd.row + j]);
-#endif
-		}
-#if DEBUG_PRINT
-		printf("\n");
-#endif
-	}
+        float *mean_val = mean(dd);
+        for(int i=0; i<dd.col; i++){
+                for (int j=0; j<dd.col;j++){
+                        covariance[i * dd.col + j] = 0;
+                        for (int k=0; k < dd.row; k++){
+                                covariance[i * dd.col + j] += (dd.data[i * dd.row + k] - mean_val[i]) * (dd.data[j * dd.row + k] - mean_val[j]);
+                        }
+                        covariance[i * dd.col + j] /= (dd.row -  1);
+//#if DEBUG_PRINT
+                        printf("%f ", covariance[i * dd.col + j]);
+//#endif
+                }
+//#if DEBUG_PRINT
+                printf("\n");
+//#endif
+        }
 
-	delete mean_val;
+        delete mean_val;
 }
+
 
 //column major order doesn't matter for sgesvd_
 //the matrix pumped out of cov is singular
@@ -107,23 +108,23 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 {
 	printf("Entering PCA...\n");
 	//16 x 20000 means a 16x16 covariance matrix
-	float *cov_mat = (float*)malloc(sizeof(float) * x.row * x.row);
+	float *cov_mat = (float*)malloc(sizeof(float) * x.col * x.col);
 
 	cov(x,cov_mat);
 	char JOBU = 'N';
 	char JOBV = 'A';
 
-	int svd_M = x.row;
-	int svd_N = x.row;
-	int lda = x.row;
-	int ldu = x.row;
-	int ldv = x.row;
+	int svd_M = x.col;
+	int svd_N = x.col;
+	int lda = x.col;
+	int ldu = x.col;
+	int ldv = x.col;
 	int info;
 
 	int lwork = 3 * svd_M * svd_M + 4 * svd_M * svd_M + 4 * svd_M;;
-	float s[x.row];
-	float uu[x.row*x.row];
-	float vv[x.row*x.row];
+	float s[x.col];
+	float uu[x.col*x.col];
+	float vv[x.col*x.col];
 	float wk[lwork];
 
 	sgesvd_(&JOBU, &JOBV,
@@ -151,19 +152,19 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 //			&info);
 
 
-	for (int i=0; i<x.row; i++){
-		pca1.data[i] = vv[i * x.row];
-		pca2.data[i] = vv[i * x.row + 1];
+	for (int i=0; i<x.col; i++){
+		pca1.data[i] = vv[i * x.col];
+		pca2.data[i] = vv[i * x.col + 1];
 	}
 	printf("PCA finished...\n");
 //	memcpy(pca1, &vv[0], sizeof(float)* mat_m);
 //	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
 
 #if DEBUG_PRINT
-	for (int i=0; i<x.row; i++){
+	for (int i=0; i<x.col; i++){
 		printf("\t%f ", s[i]);
-		for (int j=0; j<x.row; j++)
-			printf("%f ", vv[IDX2C(i,j, x.row)]);
+		for (int j=0; j<x.col; j++)
+			printf("%f ", vv[IDX2C(i,j, x.col)]);
 		printf("\n");
 	}
 	printf("\n");
@@ -177,14 +178,14 @@ void pca(MATRIX<MATRIX_TYPE> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pc
 static void normalize(MATRIX<MATRIX_TYPE> mat)
 {
 	float sum = 0;
-	for (int i=0;i<mat.col; i++){
+	for (int i=0;i<mat.row; i++){
 		sum = 0;
-		for (int j=0; j<mat.row; j++){
-			mat.data[i * mat.row + j] = fabs(mat.data[i * mat.row + j]);
-			sum += mat.data[i * mat.row + j];
+		for (int j=0; j<mat.col; j++){
+			mat.data[i * mat.col + j] = fabs(mat.data[i * mat.col + j]);
+			sum += mat.data[i * mat.col + j];
 		}
-		for (int j=0;j<mat.row; j++){
-			mat.data[i * mat.row + j] /= sum;
+		for (int j=0;j<mat.col; j++){
+			mat.data[i * mat.col + j] /= sum;
 		}
 	}
 }
@@ -347,6 +348,7 @@ void initSplitPBO()
     glBindTexture  (GL_TEXTURE_TYPE, 0);
 
 }
+
 void initGLBuffers()
 {
 	initPBO();
@@ -410,6 +412,7 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 	file.open(filename, std::ifstream::in);
 	std::string str;
 
+	int counter = 0;
 	int row = 0;
 	if (!file.good())
 		printf("file bad!\n");
@@ -421,17 +424,22 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 		//16 rows by 20000 cols in the file
 		float value1 = atof(tok);
 
-		x.data[offset + row ] = sin(3.1415927 * value1 / 180.0f);
-		x.data[offset + row + x.col] = cos(3.1415927 * value1 / 180.0f);
 
 		tok = strtok(NULL, " ");
 		float value2 = atof(tok);
 
-		x.data[offset + row + x.col * 2] = sin(3.1415927 * value2 / 180.0f);
-		x.data[offset + row + x.col * 3] = cos(3.1415927 * value2 / 180.0f);
+
+		x.data[offset + row ] = sin(3.1415927 * value1 / 180.0f);
+		x.data[offset + row + x.row] = cos(3.1415927 * value1 / 180.0f);
+		x.data[offset + row + x.row * 2] = sin(3.1415927 * value2 / 180.0f);
+		x.data[offset + row + x.row * 3] = cos(3.1415927 * value2 / 180.0f);
+
 
 		if (value1 < 0 && value1 > -180){
-			if ( value2 > -100 && value2 < 50){
+			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
+						labels[offset + row] = 4;
+			}
+			else if ( value2 > -100 && value2 < 50){
 				labels[offset + row] = 8;
 			}
 			else if (value2 > 50 && value2 < 100){
@@ -443,9 +451,6 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 			else if (value2 > -180 && value2 < -100){
 				labels[offset + row] = 3;
 			}
-		}
-		else if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
-			labels[offset + row] = 4;
 		}
 		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
 			labels[offset + row] = 5;
@@ -459,12 +464,13 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 		else
 			labels[offset + row] = 0;
 
-
-		labels[offset + row] = label_value;
 		row++;
+
 	}
 	printf("row: %d\n",row);
 	file.close();
+
+	printf("%d \n", counter);
 }
 
 int main( int argc, char **argv )
@@ -483,8 +489,8 @@ int main( int argc, char **argv )
 	pc2.col = 1;
 
 	MATRIX<MATRIX_TYPE> x;
-	x.row = VECTOR_SIZE;
-	x.col =  DATA_SIZE;
+	x.row = DATA_SIZE;
+	x.col =  VECTOR_SIZE;
 	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
 
 	MATRIX<float> pd1;
@@ -502,7 +508,7 @@ int main( int argc, char **argv )
 	data_dm.col =  DATA_SIZE;
 	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
 
-	uint *labels = (uint*)malloc(sizeof(uint) * x.col);
+	uint *labels = (uint*)malloc(sizeof(uint) * x.row);
 
 	std::ifstream file;
 	char filename[100];
@@ -514,35 +520,38 @@ int main( int argc, char **argv )
 //	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
 //	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
 
-//	getFile("angles_38073.set", x, labels, 0, 0);
+	getFile("angles_38073.set", x, labels, 0, 0);
 
-	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
-	for (int i=0; i<20; i++){
-		for (int j=0; j<1000; j++){
-			labels[i * 1000 + j] = i;
-		}
-	}
+//	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
+//	for (int i=0; i<20; i++){
+//		for (int j=0; j<1000; j++){
+//			labels[i * 1000 + j] = i;
+//		}
+//	}
 
 	normalize(x);
 	pca(x, pc1,pc2);
+
+	printf("%f %f \n", pc1.data[0], pc1.data[1]);
+	printf("%f %f \n", pc2.data[0], pc2.data[1]);
 
 	//mean0 == dm
 	//dm should be shape = (16,)
 	//dm is correct compared to python code...
 	//it needed a reverse index
-	float *dm = (float*)malloc(sizeof(float) * x.row);
+	float *dm = (float*)malloc(sizeof(float) * x.col);
 
-	for(int i=0; i<x.row;i++){
+	for(int i=0; i<x.col;i++){
 		dm[i] = 0.0;
-		for(int j=0; j<x.col; j++){
-			dm[i] += x.data[i + x.row * j];
+		for(int j=0; j<x.row; j++){
+			dm[i] += x.data[i + x.col * j];
 		}
-		dm[i] = dm[i] / x.col;
+		dm[i] = dm[i] / x.row;
 	}
 
 	for (int i=0; i<data_dm.col; i++){
 		for (int j=0; j<data_dm.row; j++){
-			data_dm.data[j * data_dm.col + i] = x.data[j + x.row * i] - dm[j];
+			data_dm.data[j * data_dm.col + i] = x.data[j + x.col * i] - dm[j];
 		}
 		pd1.data[i] = dot(pc1, data_dm,i);
 		pd2.data[i] = dot(pc2, data_dm,i);
@@ -612,7 +621,7 @@ int main( int argc, char **argv )
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
 	//for (int i=0; i<host_T; i++)
-	runCuda((uint*)d_regular_output, d_split_output);
+		runCuda((uint*)d_regular_output, d_split_output);
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
@@ -620,5 +629,5 @@ int main( int argc, char **argv )
 
 
 	cleanup();
-	delete pc1.data, pc2.data, x, dm, pd1, pd2, data_dm, b1,b2,ww.data,labels;
+	delete pc1.data, pc2.data, x.data, dm, pd1, pd2, data_dm, b1,b2,ww.data,labels;
 };
