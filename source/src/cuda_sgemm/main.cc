@@ -650,6 +650,13 @@ int main( int argc, char **argv )
 		}
 	}
 
+	float sum = 0;
+	for (int i=0; i<4; i++){
+		sum +=  ww(i,1)*x(i,0);
+
+	}
+	printf("%f\n",sum);
+
     // map PBO to get CUDA device pointer
 	initGLBuffers();
    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );

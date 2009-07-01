@@ -10,7 +10,7 @@ MATRIX<MATRIX_TYPE> device_ww2, device_save, device_sum, device_scratch;
 MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
 ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> device_ww, device_data;
 
-ORDERED_MATRIX<float,COLUMN_MAJOR> tmp;
+
 unsigned int *ret, *indices;
 
 float host_alpha[2];
@@ -403,27 +403,28 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     //this is related to IMAGE_MXN
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
     cudaThreadSynchronize();
-    ORDERED_MATRIX<float, COLUMN_MAJOR> tmp;
-    tmp.row = device_data.row;
-    tmp.col = device_data.col;
-    tmp.data = (float*)malloc(tmp.row* tmp.col * sizeof(float));
 
-    cudaMemcpy(tmp.data,device_data.data,sizeof(int) * tmp.row * tmp.col, cudaMemcpyDeviceToHost);
-	tmp.print();
+    ORDERED_MATRIX<float, COLUMN_MAJOR> tmp;
+    tmp.row = 1024;
+    tmp.col = 1;
+
+    tmp.data = (float*)malloc(sizeof(float) * 1024);
 
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-    for (int i=0; i<DATA_SIZE; i++){
+    for (int i=0; i<1; i++){
     	if ( !(i % 10000) )
     		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
-		cublasSgemv('N', device_ww.col, device_ww.row, 2, device_ww.data, device_ww.col,
-				device_data.data + i * device_ww.row,
+		cublasSgemv('T', device_ww.row, device_ww.col, 1, device_ww.data, device_ww.row,
+				device_data.data + i * device_data.col,
 				1,
-				-1,
+				0,
 				device_ww2.data,
 				1);
 		cudaThreadSynchronize();
+		cudaMemcpy(tmp.data, device_ww2.data, sizeof(float) * 1024, cudaMemcpyDeviceToHost);
+		tmp.print();
 		cudaError_t lasterror = cudaGetLastError();
 		if (lasterror)
 			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
