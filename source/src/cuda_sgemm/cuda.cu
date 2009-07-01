@@ -437,6 +437,12 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	argh.col = device_sum.col;
 	argh.data = (float*)malloc(argh.row * argh.col * sizeof(float));
 	cudaMemcpy(argh.data, device_sum.data, sizeof(float) * argh.col * argh.row, cudaMemcpyDeviceToHost);
+
+	ORDERED_MATRIX<float, COLUMN_MAJOR> cc_sum;
+	cc_sum.row = 4;
+	cc_sum.col = 1024;
+	cc_sum.data = (float*)malloc(cc_sum.row * cc_sum.col *sizeof(float));
+	memset(cc_sum.data, 0 , sizeof(float) * cc_sum.row * cc_sum.col);
 	for (int k=0; k<4; k++){
 		for (int i=0; i<32; i++){
 			int imin = max(i - host_beta[0],0);
@@ -446,15 +452,21 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 				float sum = 0;
 				for (int x=imin; x<imax; x++){
 					//printf("%f ", argh(i, i + IMAGE_M * j));
-					sum += argh(k, x + IMAGE_M * j);
+					cc_sum(k, i + IMAGE_M * j) += argh(k, x + IMAGE_M * j);
 				}
-				printf("%f ",sum);
+			}
+		}
+	}
+
+	for (int i =0; i<4; i++){
+		for (int j =0; j<32; j++){
+			for (int k=0; k<32; k++){
+				printf("%f ", cc_sum(i, j + IMAGE_M *k));
 			}
 			printf("\n");
 		}
 		printf("\n");
 	}
-
     cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
