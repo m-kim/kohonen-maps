@@ -135,7 +135,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < VECTOR_SIZE)
-		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index + DATA_SIZE * threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
+		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
@@ -209,7 +209,7 @@ __global__ void expandLogImage(unsigned char *im, const uint *ret)
 
 	for (int i=0; i<16; i++){
 		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = logf(ret[y * IMAGE_M + x]);
+			im[(y * 16 + j) * 512 + x * 16 + i] = 10 * logf(ret[y * IMAGE_M + x]);
 		}
 	}
 }
@@ -300,8 +300,8 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  MATRIX<
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
-	host_beta[0] = 10;
-	host_beta[1] = 10;
+	host_beta[0] = 8;
+	host_beta[1] = 8;
 	host_alpha[0] = .6;
 	host_alpha[1] = .6;
 
@@ -396,10 +396,10 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cutStartTimer(timer);
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
+    cutilSafeCall(cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col));
+    cutilSafeCall(cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row));
 
-    cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col);
 
-    cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row);
     //this is related to IMAGE_MXN
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
     cudaThreadSynchronize();
@@ -428,51 +428,33 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
         	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
     }
 
-	MATRIX<float> count;
-	count.row = device_ww2.row;
-	count.col = device_ww2.col;
-	count.data = (float*)malloc(sizeof(float) * count.row * count.col);
-	cudaMemcpy(count.data, device_ww2.data, sizeof(float)*count.row * count.col, cudaMemcpyDeviceToHost);
-	printf("aha!\n");
-	count.print();
-
     cublasShutdown();
-
-    block = dim3(16,16);
-    grid = dim3(2,2);
-    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
-    											device_labels.data,device_indices.data);
-	cudaThreadSynchronize();
-	block = dim3(16,16);
-	grid = dim3(IMAGE_M/16,IMAGE_N/16);
-	expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
 
-    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
-    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
-
-
-    cudaThreadSynchronize();
     printf("build split image %s\n", cudaGetErrorString(cudaGetLastError()));
-    cutStopTimer(timer);
-    time = cutGetTimerValue(timer);
-    total_time += time;
-    printf("Run time %f\n\n", time);
 
-    cutResetTimer(timer);
-
-    block = dim3(16,16);
-    grid = dim3(IMAGE_M/16, IMAGE_N/16);
     cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
 
-	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
-
 	cudaThreadSynchronize();
+    cutStopTimer(timer);
+    time = cutGetTimerValue(timer);
+    total_time += time;
+    printf("Run time %f\n\n", time);
+    cutResetTimer(timer);
 
+    block = dim3(16,16);
+    grid = dim3(IMAGE_M/16, IMAGE_N/16);
+    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
+    											device_labels.data,device_indices.data);
+    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
+
+    	expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 	generateSplitImage(genome_index, device_split_pbo);
 
 

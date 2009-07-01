@@ -539,7 +539,7 @@ int main( int argc, char **argv )
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
-	//for (int i=0; i<host_T; i++)
+	for (int i=0; i<host_T; i++)
 		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
