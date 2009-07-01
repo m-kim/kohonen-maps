@@ -1,7 +1,17 @@
 #include <iostream>
 
+#ifndef MATRIX_H
+#define MATRIX_H
+
 #define ROW_MAJOR 0
 #define COLUMN_MAJOR 1
+extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
+        float* A, const int* lda, float* S, float* U, const int* ldu,
+        float* VT, const int* ldvt, float* work,const int* lwork, const
+        int* info);
+extern "C" void sgesdd_(char *jobz, int *m, int *n,
+		float *a, int *lda, float *s, float *u, int *ldu,
+		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
 
 template<class T>
@@ -115,4 +125,76 @@ public:
 //		}
 	}
 
+	void pca(MATRIX<TYPE> pca1, MATRIX<TYPE> pca2)
+	{
+		printf("Entering PCA...\n");
+		//16 x 20000 means a 16x16 covariance matrix
+		float *cov_mat = cov();
+
+		unsigned int _row = this->row;
+		unsigned int _col = this->col;
+
+
+		char JOBU = 'N';
+		char JOBV = 'A';
+
+		int svd_M = _col;
+		int svd_N = _col;
+		int lda = _col;
+		int ldu = _col;
+		int ldv = _col;
+		int info;
+
+		int lwork = 3 * svd_M * svd_M + 4 * svd_M * svd_M + 4 * svd_M;;
+		float s[_col];
+		float uu[_col*_col];
+		float vv[_col*_col];
+		float wk[lwork];
+
+		sgesvd_(&JOBU, &JOBV,
+				&svd_N, &svd_M,
+				cov_mat, &lda,
+				s,
+				uu, &ldu,
+				vv, &ldv,
+				wk, &lwork,
+				&info);
+
+	//	int iwork[8 * svd_M];
+	//	//allegedly faster than sgesvd, but more memory required
+	//	//vector size: 3*m*m + 4*m*m + 4*m
+	//	//http://www.netlib.org/lapack/double/dgesdd.f
+	//	//iwork, dimension (8*min(M,N))
+	//	sgesdd_(&JOBV,
+	//			&svd_N, &svd_M,
+	//			cov_mat, &lda,
+	//			s,
+	//			uu, &ldu,
+	//			vv, &ldv,
+	//			wk, &lwork,
+	//			iwork,
+	//			&info);
+
+
+		for (int i=0; i<_col; i++){
+			pca1.data[i] = vv[i * _col];
+			pca2.data[i] = vv[i * _col + 1];
+		}
+		printf("PCA finished...\n");
+	//	memcpy(pca1, &vv[0], sizeof(float)* mat_m);
+	//	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
+
+	#if DEBUG_PRINT
+		for (int i=0; i<x.col; i++){
+			printf("\t%f ", s[i]);
+			for (int j=0; j<x.col; j++)
+				printf("%f ", vv[IDX2C(i,j, x.col)]);
+			printf("\n");
+		}
+		printf("\n");
+		printf("%d\n",info);
+	#endif
+		delete cov_mat;
+	}
 };
+#endif

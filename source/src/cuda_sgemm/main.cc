@@ -15,16 +15,9 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" void cleanup();
-extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
-        float* A, const int* lda, float* S, float* U, const int* ldu,
-        float* VT, const int* ldvt, float* work,const int* lwork, const
-        int* info);
-extern "C" void sgesdd_(char *jobz, int *m, int *n,
-		float *a, int *lda, float *s, float *u, int *ldu,
-		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
 extern "C" int genome_index = 0;
 extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
@@ -71,75 +64,7 @@ float dot(MATRIX<MATRIX_TYPE> one, ORDERED_MATRIX<MATRIX_TYPE,COLUMN_MAJOR> two,
 //the matrix pumped out of cov is singular
 //however, the matrix returned will be in column major order
 //so, that needs to be taken into account...
-void pca(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> x, MATRIX<MATRIX_TYPE> pca1, MATRIX<MATRIX_TYPE> pca2)
-{
-	printf("Entering PCA...\n");
-	//16 x 20000 means a 16x16 covariance matrix
-	float *cov_mat = x.cov();
 
-
-
-	char JOBU = 'N';
-	char JOBV = 'A';
-
-	int svd_M = x.col;
-	int svd_N = x.col;
-	int lda = x.col;
-	int ldu = x.col;
-	int ldv = x.col;
-	int info;
-
-	int lwork = 3 * svd_M * svd_M + 4 * svd_M * svd_M + 4 * svd_M;;
-	float s[x.col];
-	float uu[x.col*x.col];
-	float vv[x.col*x.col];
-	float wk[lwork];
-
-	sgesvd_(&JOBU, &JOBV,
-			&svd_N, &svd_M,
-			cov_mat, &lda,
-			s,
-			uu, &ldu,
-			vv, &ldv,
-			wk, &lwork,
-			&info);
-
-//	int iwork[8 * svd_M];
-//	//allegedly faster than sgesvd, but more memory required
-//	//vector size: 3*m*m + 4*m*m + 4*m
-//	//http://www.netlib.org/lapack/double/dgesdd.f
-//	//iwork, dimension (8*min(M,N))
-//	sgesdd_(&JOBV,
-//			&svd_N, &svd_M,
-//			cov_mat, &lda,
-//			s,
-//			uu, &ldu,
-//			vv, &ldv,
-//			wk, &lwork,
-//			iwork,
-//			&info);
-
-
-	for (int i=0; i<x.col; i++){
-		pca1.data[i] = vv[i * x.col];
-		pca2.data[i] = vv[i * x.col + 1];
-	}
-	printf("PCA finished...\n");
-//	memcpy(pca1, &vv[0], sizeof(float)* mat_m);
-//	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
-
-#if DEBUG_PRINT
-	for (int i=0; i<x.col; i++){
-		printf("\t%f ", s[i]);
-		for (int j=0; j<x.col; j++)
-			printf("%f ", vv[IDX2C(i,j, x.col)]);
-		printf("\n");
-	}
-	printf("\n");
-	printf("%d\n",info);
-#endif
-	delete cov_mat;
-}
 
 
 //N == 10000, S == 20
@@ -399,7 +324,7 @@ void initGL( int argc, char **argv )
     }
 }
 
-void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> x, uint *labels, uint offset, uint label_value)
+void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];
@@ -523,7 +448,7 @@ int main( int argc, char **argv )
 //	}
 
 	x.normalize();
-	pca(x, pc1,pc2);
+	x.pca(pc1,pc2);
 
 	printf("pc1: %f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
 	printf("pc2: %f %f %f %f\n", pc2.data[0], pc2.data[1],pc2.data[2], pc2.data[3]);
