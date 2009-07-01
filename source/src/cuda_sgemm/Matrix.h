@@ -78,23 +78,21 @@ public:
 		int _row = this->row;
 		TYPE *covariance = (TYPE*)malloc(sizeof(TYPE) * this->col * this->col);
 		TYPE *mean_val = mean();
-//		if (ORDER == COLUMN_MAJOR){
-			for(int i=0; i< _col; i++){
-				for (int j=0; j< _col;j++){
-						covariance[i * _col + j] = 0;
-						for (int k=0; k < _row; k++){
-								covariance[i * _col + j] += ((*this)(k,i) - mean_val[i]) * ((*this)(k,j) - mean_val[j]);
-						}
-						covariance[i * _col + j] /= (_row - 1);
-		//#if DEBUG_PRINT
-						printf("%f ", covariance[i * _col + j]);
-		//#endif
-				}
-		//#if DEBUG_PRINT
-				printf("\n");
-		//#endif
+		for(int i=0; i< _col; i++){
+			for (int j=0; j< _col;j++){
+					covariance[i * _col + j] = 0;
+					for (int k=0; k < _row; k++){
+							covariance[i * _col + j] += ((*this)(k,i) - mean_val[i]) * ((*this)(k,j) - mean_val[j]);
+					}
+					covariance[i * _col + j] /= (_row - 1);
+#if DEBUG_PRINT
+					printf("%f ", covariance[i * _col + j]);
+#endif
 			}
-//		}
+#if DEBUG_PRINT
+			printf("\n");
+#endif
+		}
 		delete mean_val;
 		return covariance;
 	}
@@ -104,19 +102,17 @@ public:
 		unsigned int _col = this->col;
 		float sum = 0;
 
-//		if(ORDER == COLUMN_MAJOR){
-			for (int i=0;i<_row; i++){
-				sum = 0;
-				for (int j=0; j<_col; j++){
-					(*this)(i,j) = fabs((*this)(i,j));
-					sum += (*this)(i,j);
+		for (int i=0;i<_row; i++){
+			sum = 0;
+			for (int j=0; j<_col; j++){
+				(*this)(i,j) = fabs((*this)(i,j));
+				sum += (*this)(i,j);
 
-				}
-				for (int j=0;j<_col; j++){
-					(*this)(i,j) /= sum;
-				}
 			}
-//		}
+			for (int j=0;j<_col; j++){
+				(*this)(i,j) /= sum;
+			}
+		}
 	}
 
 	void pca(MATRIX<TYPE> pca1, MATRIX<TYPE> pca2)

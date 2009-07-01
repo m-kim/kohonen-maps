@@ -445,11 +445,6 @@ int main( int argc, char **argv )
 //		}
 //	}
 	x.normalize();
-	float some = 0;
-	for (int i=0; i<112827; i++){
-		some += x(i,0);
-	}
-	printf("sum: %f\n",some);
 	x.pca(pc1,pc2);
 
 	printf("pc1: %f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);

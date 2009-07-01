@@ -406,17 +406,18 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-    for (int i=0; i<1; i++){
+    for (int i=0; i<DATA_SIZE; i++){
     	if ( !(i % 10000) )
     		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
-		cublasSgemv('T', device_ww.row, device_ww.col, 1, device_ww.data, device_ww.row,
+		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_data.col,
 				1,
-				0,
+				-1,
 				device_ww2.data,
 				1);
 		cudaThreadSynchronize();
+
 		cudaError_t lasterror = cudaGetLastError();
 		if (lasterror)
 			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
@@ -426,6 +427,14 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     	if (lasterror)
         	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
     }
+
+	MATRIX<float> count;
+	count.row = device_ww2.row;
+	count.col = device_ww2.col;
+	count.data = (float*)malloc(sizeof(float) * count.row * count.col);
+	cudaMemcpy(count.data, device_ww2.data, sizeof(float)*count.row * count.col, cudaMemcpyDeviceToHost);
+	printf("aha!\n");
+	count.print();
 
     cublasShutdown();
 
