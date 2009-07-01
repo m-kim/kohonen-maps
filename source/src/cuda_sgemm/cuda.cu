@@ -457,17 +457,31 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 			}
 		}
 	}
+	memset(argh.data, 0, sizeof(float) * argh.row * argh.col);
+	for (int k=0; k<4; k++){
+		for (int i=0; i<32; i++){
+			int imin = max(i - host_beta[0],0);
+			int imax = min(i+ host_beta[0] + 1,IMAGE_N);
+			for (int j=0; j<32; j++){
+				float sum = 0;
+				for (int x=imin; x<imax; x++){
+					//printf("%f ", argh(i, i + IMAGE_M * j));
+					argh(k, i + IMAGE_M * j) += cc_sum(k, i + IMAGE_M * x);
+				}
+			}
+		}
+	}
 
-	for (int i =0; i<4; i++){
-		for (int j =0; j<32; j++){
+	for (int i=0; i<4; i++){
+		for (int j=0; j<32; j++){
 			for (int k=0; k<32; k++){
-				printf("%f ", cc_sum(i, j + IMAGE_M *k));
+				printf("%f ", argh(i, j + IMAGE_M * k));
 			}
 			printf("\n");
 		}
 		printf("\n");
 	}
-    cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
+	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 
