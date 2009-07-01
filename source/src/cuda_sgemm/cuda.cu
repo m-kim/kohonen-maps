@@ -31,66 +31,73 @@ __global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
 
 __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
-	int j = threadIdx.x + blockDim.x * blockIdx.x;
-	int slab = threadIdx.y + blockDim.y * blockIdx.y;
-	int index = j * IMAGE_M + slab;
+	int row = threadIdx.x + blockDim.x * blockIdx.x;
+	int col = threadIdx.y + blockDim.y * blockIdx.y;
+	int index = row * IMAGE_M + col;
 
-	if (slab < IMAGE_M){
-		int _min = max(j - _beta, 0);
-		int _max = min(j + _beta + 1, IMAGE_N);
+	if (col < IMAGE_M){
+		int _min = max(row - _beta, 0);
+		int _max = min(row + _beta + 1, IMAGE_N);
 
 		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
 			for (int k= _min; k<_max; k++){
-				b[i * IMAGE_MxN + index]  += a[i * IMAGE_MxN + k * IMAGE_M + slab];
+				b[i * IMAGE_MxN + index]  += a[i * IMAGE_MxN + k * IMAGE_M + col];
 			}
 		}
 		for (int k= _min; k<_max; k++){
-			count[index] += ww_count[k * IMAGE_M + slab];
+			count[index] += ww_count[k * IMAGE_M + col];
 		}
 	}
 }
 
 __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, uint *count, int _beta, float _alpha)
 {
-	int j = threadIdx.x + blockDim.x * blockIdx.x;
-	int slab = threadIdx.y + blockDim.y * blockIdx.y;
-	int index = j * IMAGE_M + slab;
+	int row = threadIdx.x + blockDim.x * blockIdx.x;
+	int col = threadIdx.y + blockDim.y * blockIdx.y;
+	int index = row * IMAGE_M + col;
 //	__shared__ float s_ww[IMAGE_N * IMAGE_M];
-	int _min = max(slab - _beta, 0);
-	int _max = min(slab + _beta + 1, IMAGE_M);
+	int _min = max(col - _beta, 0);
+	int _max = min(col + _beta + 1, IMAGE_M);
 
-	if (slab < IMAGE_M){
+	if (col < IMAGE_M){
 
 		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
 			for (int k= _min; k<_max; k++){
-				a[i * IMAGE_MxN + index]  += b[i * IMAGE_MxN + j * IMAGE_M + k];
+				a[i * IMAGE_MxN + index]  += b[i * IMAGE_MxN + row * IMAGE_M + k];
 			}
 		}
 		for (int k= _min; k<_max; k++){
-			ww_count[index] += count[j * IMAGE_M + k];
+			ww_count[index] += count[row * IMAGE_M + k];
 		}
 
 		for (int i=0; i<VECTOR_SIZE; i++){
 			if (ww_count[index] == 0)
 				a[i * IMAGE_MxN + index] = 0;
 			else
-				a[ i * IMAGE_MxN + index] = a[ i * IMAGE_MxN + index] / (ww_count[index] + EPSILON);
+				a[ i * IMAGE_MxN + index]  /= (float)ww_count[index];
         	ww[i * IMAGE_MxN + index] = abs(ww[i * IMAGE_MxN + index]  +_alpha * (a[i * IMAGE_MxN + index] - ww[i * IMAGE_MxN + index]));
 		}
 		for (int i=0; i<VECTOR_SIZE; i++){
 	    	ww[index] += ww[i * IMAGE_MxN + index];
 		}
-	}
-	__syncthreads();
-	if (slab < IMAGE_M){
 		for (int i=0; i<VECTOR_SIZE; i++){
 			if (ww[index] > 0)
-				ww[i * IMAGE_MxN + index] = ww[i * IMAGE_MxN + index] / (ww[index]);
+				ww[i * IMAGE_MxN + index] /= (float)ww[index];
 			else
 				ww[i * IMAGE_MxN + index] = 0;
 
 		}
 	}
+//	__syncthreads();
+//	if (col < IMAGE_M){
+//		for (int i=0; i<VECTOR_SIZE; i++){
+//			if (ww[index] > 0)
+//				ww[i * IMAGE_MxN + index] /= (float)ww[index];
+//			else
+//				ww[i * IMAGE_MxN + index] = 0;
+//
+//		}
+//	}
 }
 
 //Calculate argmax and sum the data vectors
@@ -135,7 +142,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < VECTOR_SIZE)
-		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
+		ww_sum[ argmax[0] *VECTOR_SIZE + threadIdx.x] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
@@ -145,7 +152,7 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	__shared__ int mm[IMAGE_N];
 	nn[threadIdx.x] = indices[i] / IMAGE_M;
 	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i] + 1;
+	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i];
 }
 
 __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_index)
@@ -242,7 +249,7 @@ extern "C" void cleanup()
 	cudaFree(device_labels.data);
 	delete  ret, indices;
 }
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
 {
     //setup color
 	unsigned char color[COLOR_SIZE * 4];
@@ -433,13 +440,38 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
 
     printf("build split image %s\n", cudaGetErrorString(cudaGetLastError()));
+	MATRIX<float> argh;
+	argh.row = device_sum.row;
+	argh.col = device_sum.col;
+	argh.data = (float*)malloc(argh.row * argh.col * sizeof(float));
+	cudaMemcpy(argh.data, device_sum.data, sizeof(float) * argh.col * argh.row, cudaMemcpyDeviceToHost);
+		for (int i=0; i<32; i++){
+			for (int j=0; j<32; j++){
+				printf("%f ", argh(0,i * IMAGE_M + j));
+			}
+			printf("\n");
+		}
+		printf("\n");
 
     cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
-
 	cudaThreadSynchronize();
+
+//	MATRIX<float> argh;
+//	argh.row = device_ww.row;
+//	argh.col = device_ww.col;
+//	argh.data = (float*)malloc(argh.row * argh.col * sizeof(float));
+//	cudaMemcpy(argh.data, device_ww.data, sizeof(float) * argh.col * argh.row, cudaMemcpyDeviceToHost);
+//	for (int i=0; i<32; i++){
+//		for (int j=0; j<32; j++){
+//			printf("%f ", argh(0,i * IMAGE_M + j));
+//		}
+//		printf("\n");
+//	}
+//	printf("\n");
+
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -453,7 +485,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     for (int i=0; i<GENOMIC_DATA_COUNT; i++)
     	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
 
-    	expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+    expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 	generateSplitImage(genome_index, device_split_pbo);
 

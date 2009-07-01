@@ -15,7 +15,7 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  MATRIX<MATRIX_TYPE> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" void cleanup();
 
@@ -97,7 +97,7 @@ void display()
 	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
 	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
 	glTexSubImage2D(GL_TEXTURE_TYPE,
-							0, 0, 0, width/2, height/2, GL_BGRA, GL_UNSIGNED_BYTE, 0);
+							0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 	glutReportErrors();
 	glEnable(GL_TEXTURE_TYPE);
 
@@ -357,12 +357,13 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *l
 						labels[ row] = 4;
 			}
 			else if ( value2 > -100 && value2 < 50){
-				labels[ row] = 8;
+				labels[ row] = 0;
 			}
 			else if (value2 > 50 && value2 < 100){
 				labels[ row] = 1;
 			}
 			else if (value2 > 50 && value2 < 180){
+				counter++;
 				labels[ row] = 2;
 			}
 			else if (value2 > -180 && value2 < -100){
@@ -383,7 +384,7 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *l
 
 		row++;
 	}
-	printf("row: %d %f\n",row, x(0,0));
+	printf("row: %d %d\n",row, counter);
 	file.close();
 
 	printf("%d \n", counter);
@@ -513,13 +514,6 @@ int main( int argc, char **argv )
 		}
 	}
 
-	float sum = 0;
-	for (int i=0; i<4; i++){
-		sum +=  ww(i,0)*x(0,i);
-
-	}
-	printf("%f\n",sum);
-
     // map PBO to get CUDA device pointer
 	initGLBuffers();
    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
@@ -539,7 +533,7 @@ int main( int argc, char **argv )
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
-	for (int i=0; i<host_T; i++)
+	//for (int i=0; i<host_T; i++)
 		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
