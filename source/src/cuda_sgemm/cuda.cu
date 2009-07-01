@@ -380,13 +380,6 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED
     printf("setup matrix data %d %d\n", device_data.row, device_data.col);
     cutilSafeCall(cudaMalloc((void**)&device_data.data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
-//    for (int i=0; i<data.row; i++){
-//    	for (int j=0; j<data.col; j++){
-//    		cutilSafeCall(cudaMemcpy(
-//    				device_data.data  + (j * data.row + i),
-//    				data.data + (i * data.col + j), sizeof(float), cudaMemcpyHostToDevice));
-//    	}
-//    }
 }
 
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
@@ -428,6 +421,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 		cudaError_t lasterror = cudaGetLastError();
 		if (lasterror)
 			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
+
+		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
     	reduce<<<1,REDUCE_BLOCKSIZE>>>(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data, i);
     	cudaThreadSynchronize();
     	lasterror = cudaGetLastError();
@@ -437,40 +432,36 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cublasShutdown();
 
-    printf("build image %s\n", cudaGetErrorString(cudaGetLastError()));
-
-    printf("build split image %s\n", cudaGetErrorString(cudaGetLastError()));
-	MATRIX<float> argh;
+	ORDERED_MATRIX<float, COLUMN_MAJOR> argh;
 	argh.row = device_sum.row;
 	argh.col = device_sum.col;
 	argh.data = (float*)malloc(argh.row * argh.col * sizeof(float));
 	cudaMemcpy(argh.data, device_sum.data, sizeof(float) * argh.col * argh.row, cudaMemcpyDeviceToHost);
+	for (int k=0; k<4; k++){
 		for (int i=0; i<32; i++){
+			int imin = max(i - host_beta[0],0);
+			int imax = min(i+ host_beta[0] + 1,IMAGE_N);
+
 			for (int j=0; j<32; j++){
-				printf("%f ", argh(0,i * IMAGE_M + j));
+				float sum = 0;
+				for (int x=imin; x<imax; x++){
+					//printf("%f ", argh(i, i + IMAGE_M * j));
+					sum += argh(k, x + IMAGE_M * j);
+				}
+				printf("%f ",sum);
 			}
 			printf("\n");
 		}
 		printf("\n");
+	}
 
     cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
+
+
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
 	cudaThreadSynchronize();
-
-//	MATRIX<float> argh;
-//	argh.row = device_ww.row;
-//	argh.col = device_ww.col;
-//	argh.data = (float*)malloc(argh.row * argh.col * sizeof(float));
-//	cudaMemcpy(argh.data, device_ww.data, sizeof(float) * argh.col * argh.row, cudaMemcpyDeviceToHost);
-//	for (int i=0; i<32; i++){
-//		for (int j=0; j<32; j++){
-//			printf("%f ", argh(0,i * IMAGE_M + j));
-//		}
-//		printf("\n");
-//	}
-//	printf("\n");
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
