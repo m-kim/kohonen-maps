@@ -43,14 +43,14 @@ class ORDERED_MATRIX:public MATRIX<TYPE>
 {
 public:
 	TYPE& operator()(int _row, int _col){
-		if (ORDER)
+		if (ORDER == COLUMN_MAJOR)
 			return this->data[_row + this->row * _col];
 		else
 			return this->data[_row * this->col + _col];
 	}
 
 	TYPE operator() (unsigned _row, unsigned _col) const{
-		if (ORDER)
+		if (ORDER == COLUMN_MAJOR)
 			return this->data[_row + this->row * _col];
 		else
 			return this->data[_row * this->col + _col];
@@ -62,17 +62,13 @@ public:
 		unsigned int _col = this->col;
 		//get the mean value for each row...
 		float *ret = (float*)malloc(sizeof(float) * this->col);
-//		if (ORDER == COLUMN_MAJOR){
-			for(int i=0; i<_col;i++){
-				ret[i] = 0.0;
-				for(int j=0; j<_row; j++){
-					ret[i] += (*this)(j,i);
-				}
-				ret[i] = ret[i] / this->row;
+		for(int i=0; i<_col;i++){
+			ret[i] = 0.0;
+			for(int j=0; j<_row; j++){
+				ret[i] += (*this)(j,i);
 			}
-//		}
-//		else{
-//		}
+			ret[i] = ret[i] / _row;
+		}
 		return ret;
 	}
 
@@ -112,14 +108,12 @@ public:
 			for (int i=0;i<_row; i++){
 				sum = 0;
 				for (int j=0; j<_col; j++){
-					(*this)(i,j) = fabs((*this)(i,j));//.data[i + _row * j]);
-					sum += this->data[i + _row * j];
-					if (i<1)
-						printf("sum %f\n",fabs(this->data[i + _row * j]));
+					(*this)(i,j) = fabs((*this)(i,j));
+					sum += (*this)(i,j);
 
 				}
 				for (int j=0;j<_col; j++){
-					this->data[i + _row * j] /= sum;
+					(*this)(i,j) /= sum;
 				}
 			}
 //		}

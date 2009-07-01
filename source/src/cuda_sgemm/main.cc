@@ -49,7 +49,7 @@ float stdDev(const MATRIX<MATRIX_TYPE> &mat)
 	return sqrt(sum / (mat.row - 1));
 }
 
-float dot(MATRIX<MATRIX_TYPE> one, ORDERED_MATRIX<MATRIX_TYPE,COLUMN_MAJOR> two, int col)
+float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
@@ -324,7 +324,7 @@ void initGL( int argc, char **argv )
     }
 }
 
-void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset, uint label_value)
+void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];
@@ -347,13 +347,11 @@ void getFile(std::string name, MATRIX<MATRIX_TYPE> x, uint *labels, uint offset,
 		tok = strtok(NULL, " ");
 		float value2 = atof(tok);
 
-
 		x(row, 0) = cos(3.1415927 * value1 / 180.0f);
 		x(row, 1) = sin(3.1415927 * value1 / 180.0f);
 		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
 		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
 
-		counter++;
 		if (value1 < 0 && value1 > -180){
 			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
 						labels[ row] = 4;
@@ -406,7 +404,7 @@ int main( int argc, char **argv )
 	pc2.row = VECTOR_SIZE;
 	pc2.col = 1;
 
-	ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> x;
+	ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x;
 	x.row = DATA_SIZE;
 	x.col =  VECTOR_SIZE;
 	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
@@ -446,8 +444,12 @@ int main( int argc, char **argv )
 //			labels[i * 1000 + j] = i;
 //		}
 //	}
-
 	x.normalize();
+	float some = 0;
+	for (int i=0; i<112827; i++){
+		some += x(i,0);
+	}
+	printf("sum: %f\n",some);
 	x.pca(pc1,pc2);
 
 	printf("pc1: %f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
@@ -457,15 +459,10 @@ int main( int argc, char **argv )
 	//dm should be shape = (16,)
 	//dm is correct compared to python code...
 	//it needed a reverse index
-	float *dm = (float*)malloc(sizeof(float) * x.col);
+	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
 
 	for(int i=0; i<x.col;i++){
-		dm[i] = 0.0;
-		for(int j=0; j<x.row; j++){
-			dm[i] += x.data[i * x.row + j];
-		}
-		dm[i] = dm[i] / x.row;
-
+		printf("%f\n",dm[i]);
 	}
 
 	for (int i=0; i<data_dm.row; i++){

@@ -135,7 +135,7 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < VECTOR_SIZE)
-		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
+		ww_sum[ argmax[0] + threadIdx.x * IMAGE_MxN] += data[index + DATA_SIZE * threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
@@ -404,12 +404,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
     cudaThreadSynchronize();
 
-    ORDERED_MATRIX<float, COLUMN_MAJOR> tmp;
-    tmp.row = 1024;
-    tmp.col = 1;
-
-    tmp.data = (float*)malloc(sizeof(float) * 1024);
-
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<1; i++){
@@ -423,8 +417,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 				device_ww2.data,
 				1);
 		cudaThreadSynchronize();
-		cudaMemcpy(tmp.data, device_ww2.data, sizeof(float) * 1024, cudaMemcpyDeviceToHost);
-		tmp.print();
 		cudaError_t lasterror = cudaGetLastError();
 		if (lasterror)
 			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
