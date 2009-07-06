@@ -76,6 +76,7 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
 			ww_count[col + IMAGE_M * row] += count[col + IMAGE_M * x];
 		}
 	}
+
 //		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
 //			for (int k= _min; k<_max; k++){
 //				a[i * IMAGE_MxN + index]  += b[i * IMAGE_MxN + row * IMAGE_M + k];
@@ -115,6 +116,22 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
 //	}
 }
 
+__global__ void normalize_ww(float *a, unsigned int* ww_count)
+{
+	int row = threadIdx.x + blockDim.x * blockIdx.x;
+	int col = threadIdx.y + blockDim.y * blockIdx.y;
+	int index = row * IMAGE_M + col;
+
+	for (int k=0; k<VECTOR_SIZE; k++){
+		//cc_sum(k, i + IMAGE_M * j) = argh(k, i + IMAGE_M * j)/count(j,i);
+
+		if (ww_count[row + IMAGE_M * col] == 0)
+			a[k + VECTOR_SIZE * ( row + IMAGE_M * col)] = 0;
+		else
+			a[k + VECTOR_SIZE * ( row + IMAGE_M * col)] = a[k + VECTOR_SIZE * (row + IMAGE_M * col)]/(float)ww_count[row + IMAGE_M * col];
+	}
+
+}
 //Calculate argmax and sum the data vectors
 __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
 {
@@ -501,6 +518,18 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 		}
 	}
 
+//	for (int k=0; k<4; k++){
+//		for (int i=0; i<32; i++){
+//			for (int j=0; j<32; j++){
+//				cc_sum(k, i + IMAGE_M * j) = argh(k, i + IMAGE_M * j)/count(j,i);
+//				printf("%f ", cc_sum(k, i + IMAGE_M * j));
+//			}
+//			printf("\n");
+//		}
+//		printf("\n");
+//	}
+
+
 	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	grid = dim3(2,2);
 	block = dim3(16,16);
@@ -509,16 +538,18 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
 	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
 	cudaThreadSynchronize();
-
-	cutilSafeCall(cudaMemcpy(cc_sum.data, device_sum.data, cc_sum.row * cc_sum.col * sizeof(float), cudaMemcpyDeviceToHost));
-		for (int i=0; i<4; i++){
+	normalize_ww<<<grid,block>>>(device_sum.data, device_ww_count.data);
+	cudaThreadSynchronize();
+	cudaMemcpy(cc_sum.data, device_sum.data, sizeof(float) * cc_sum.row * cc_sum.col, cudaMemcpyDeviceToHost);
+	for (int k=0; k<4; k++){
+		for (int i=0; i<32; i++){
 			for (int j=0; j<32; j++){
-				for (int k=0; k<32; k++){
-					printf("%f ", cc_sum(i, j + IMAGE_M * k));
-				}
-				printf("\n");
+				printf("%f ", cc_sum(k, i + IMAGE_M * j));
 			}
+			printf("\n");
 		}
+		printf("\n");
+	}
 
     cutStopTimer(timer);
     time = cutGetTimerValue(timer);
