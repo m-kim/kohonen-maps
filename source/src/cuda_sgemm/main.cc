@@ -324,7 +324,7 @@ void initGL( int argc, char **argv )
     }
 }
 
-void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, uint offset, uint label_value)
+void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, int offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];
@@ -337,53 +337,22 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *l
 	int row = 0;
 	if (!file.good())
 		printf("file bad!\n");
-	while (getline(file, str)){
-		//if (isdigit(str.c_str()[0])){
-		char *tok = strtok((char*)str.c_str(), " ");
 
-		//16 rows by 20000 cols in the file
-		float value1 = atof(tok);
+	 while (file.good()){
+	                //getline will retrieve 20000 numbers...
+	                getline(file, str);
+	                if (isdigit(str.c_str()[0])){
+	                        char *tok = strtok((char*)str.c_str(), ",");
+	                        for (int i=0; i<VECTOR_SIZE; i++){
+	                                //16 rows by 20000 cols in the file
+	                                x(offset + row, i) = atof(tok);
+	                                tok = strtok(NULL, " ");
+	                        }
+	                        labels[offset + row] = label_value;
+	                        row++;
+	                }
+	        }
 
-		tok = strtok(NULL, " ");
-		float value2 = atof(tok);
-
-		x(row, 0) = cos(3.1415927 * value1 / 180.0f);
-		x(row, 1) = sin(3.1415927 * value1 / 180.0f);
-		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
-		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
-
-		if (value1 < 0 && value1 > -180){
-			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
-						labels[ row] = 4;
-			}
-			else if ( value2 > -100 && value2 < 50){
-				labels[ row] = 0;
-			}
-			else if (value2 > 50 && value2 < 100){
-				labels[ row] = 1;
-			}
-			else if (value2 > 50 && value2 < 180){
-				counter++;
-				labels[ row] = 2;
-			}
-			else if (value2 > -180 && value2 < -100){
-				labels[ row] = 3;
-			}
-		}
-		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
-			labels[ row] = 5;
-		}
-		else if (value1 < 180 && value1 > 50 && value2 > 100 && value2 < 180){
-			labels[ row] = 6;
-		}
-		else if (value1 < 180 && value1 > 0 && value2 > -180 && value2 < 110){
-			labels[ row] = 7;
-		}
-		else
-			labels[ row] = 0;
-
-		row++;
-	}
 	printf("row: %d %d\n",row, counter);
 	file.close();
 
@@ -432,12 +401,16 @@ int main( int argc, char **argv )
 	std::string str;
 	int row = 0;
 
-//	getFile("cb3.fa", x, labels, 0, 0);
-//	getFile("cb3.fa", x, labels, 9581, 1);
-//	getFile("ce2.fa", x, labels, 9581 + 9581, 2);
-//	getFile("dm2.fa", x, labels, 9581 + 9581 + 10026, 3);
+	getFile("anoGAm1-100k.fa", x, labels, 0, 0);
+	getFile("cb3-100k.fa", x, labels, 2627, 1);
+	getFile("ce2-100k.fa", x, labels, 2627 + 956, 2);
+	getFile("dm2-100k.fa", x, labels, 2627 + 956 + 999, 3);
+	getFile("dp3-100k.fa", x, labels, 2627 + 956 + 999 + 1052, 4);
+	getFile("galgal2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339, 5);
+	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
 
-	getFile("output", x, labels, 0, 0);
+
+//	getFile("output", x, labels, 0);
 
 //	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
 //	for (int i=0; i<20; i++){
@@ -445,6 +418,7 @@ int main( int argc, char **argv )
 //			labels[i * 1000 + j] = i;
 //		}
 //	}
+
 	x.normalize();
 	x.pca(pc1,pc2);
 
@@ -456,10 +430,6 @@ int main( int argc, char **argv )
 	//dm is correct compared to python code...
 	//it needed a reverse index
 	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
-
-	for(int i=0; i<x.col;i++){
-		printf("%f\n",dm[i]);
-	}
 
 	for (int i=0; i<data_dm.row; i++){
 		for (int j=0; j<data_dm.col; j++){

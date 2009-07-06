@@ -44,15 +44,6 @@ __global__ void prepSum(float *a, float *b, uint *ww_count, uint *count, int _be
 			}
 			count[index] += ww_count[x + IMAGE_M * col];
 		}
-
-//		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
-//			for (int k= _min; k<_max; k++){
-//				b[i * IMAGE_MxN + index]  += a[i * IMAGE_MxN + k * IMAGE_M + col];
-//			}
-//		}
-//		for (int k= _min; k<_max; k++){
-//			count[index] += ww_count[k * IMAGE_M + col];
-//		}
 	}
 }
 
@@ -446,41 +437,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cublasShutdown();
 
-    ORDERED_MATRIX<unsigned int, COLUMN_MAJOR> count;
-    count.row = 32;
-    count.col = 32;
-    count.data = (unsigned int*)malloc(count.row * count.col * sizeof(unsigned int));
-	cudaMemcpy(count.data, device_ww_count.data, device_ww_count.row * device_ww_count.col * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-
-	ORDERED_MATRIX<int, COLUMN_MAJOR> cnt;
-	cnt.row = 32;
-	cnt.col = 32;
-	cnt.data = (int*)malloc(cnt.row * cnt.col * sizeof(int));
-	memset(cnt.data, 0, sizeof(int) * cnt.row * cnt.col);
-
-	ORDERED_MATRIX<float, COLUMN_MAJOR> argh;
-	argh.row = device_sum.row;
-	argh.col = device_sum.col;
-	argh.data = (float*)malloc(argh.row * argh.col * sizeof(float));
-	cudaMemcpy(argh.data, device_sum.data, sizeof(float) * argh.col * argh.row, cudaMemcpyDeviceToHost);
-
-	ORDERED_MATRIX<float, COLUMN_MAJOR> cc_sum;
-	cc_sum.row = 4;
-	cc_sum.col = 1024;
-	cc_sum.data = (float*)malloc(cc_sum.row * cc_sum.col *sizeof(float));
-	memset(cc_sum.data, 0 , sizeof(float) * cc_sum.row * cc_sum.col);
-
-//	for (int k=0; k<4; k++){
-//		for (int i=0; i<32; i++){
-//			for (int j=0; j<32; j++){
-//				cc_sum(k, i + IMAGE_M * j) = argh(k, i + IMAGE_M * j)/count(j,i);
-//				printf("%f ", cc_sum(k, i + IMAGE_M * j));
-//			}
-//			printf("\n");
-//		}
-//		printf("\n");
-//	}
-
 
 	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	grid = dim3(2,2);
@@ -494,18 +450,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cudaThreadSynchronize();
 	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
 
-	cudaMemcpy(cc_sum.data, device_ww.data, sizeof(float) * cc_sum.row * cc_sum.col, cudaMemcpyDeviceToHost);
-	for (int k=0; k<4; k++){
-		for (int i=0; i<32; i++){
-			for (int j=0; j<32; j++){
-				printf("%f ", cc_sum(k, i + IMAGE_M * j));
-			}
-			printf("\n");
-		}
-		printf("\n");
-	}
-
-    cutStopTimer(timer);
+	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
     printf("Run time %f\n\n", time);
