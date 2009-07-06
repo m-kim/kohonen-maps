@@ -136,10 +136,10 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		}
 	}
 	__syncthreads();
-	if (threadIdx.x < 1)
+	if (threadIdx.x < 1){
 		ret[ argmax[0] ]++;
-	indices[index] = argmax[0];
-
+		indices[index] = argmax[0];
+	}
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < VECTOR_SIZE)
 		ww_sum[ argmax[0] *VECTOR_SIZE + threadIdx.x] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
@@ -322,7 +322,7 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED
 	cutilSafeCall(cudaMalloc((void**)&device_labels.data, sizeof(uint) * data.row));
 	cutilSafeCall(cudaMemcpy(device_labels.data, labels, sizeof(uint) * data.row, cudaMemcpyHostToDevice));
 
-	device_ww_count.row = ww.row;
+	device_ww_count.row = 1024;
 	device_ww_count.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * device_ww_count.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
@@ -432,6 +432,18 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cublasShutdown();
 
+    ORDERED_MATRIX<int, COLUMN_MAJOR> count;
+    count.row = 32;
+    count.col = 32;
+    count.data = (int*)malloc(count.row * count.col * sizeof(int));
+	cudaMemcpy(count.data, device_ww_count.data, device_ww_count.row * device_ww_count.col * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+	ORDERED_MATRIX<int, COLUMN_MAJOR> cnt;
+	cnt.row = 32;
+	cnt.col = 32;
+	cnt.data = (int*)malloc(cnt.row * cnt.col * sizeof(int));
+	memset(cnt.data, 0, sizeof(int) * cnt.row * cnt.col);
+
 	ORDERED_MATRIX<float, COLUMN_MAJOR> argh;
 	argh.row = device_sum.row;
 	argh.col = device_sum.col;
@@ -443,44 +455,38 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cc_sum.col = 1024;
 	cc_sum.data = (float*)malloc(cc_sum.row * cc_sum.col *sizeof(float));
 	memset(cc_sum.data, 0 , sizeof(float) * cc_sum.row * cc_sum.col);
-	for (int k=0; k<4; k++){
-		for (int i=0; i<32; i++){
-			int imin = max(i - host_beta[0],0);
-			int imax = min(i+ host_beta[0] + 1,IMAGE_N);
+	for (int i=0; i<32; i++){
+		int imin = max(i - host_beta[0],0);
+		int imax = min(i+ host_beta[0] + 1,IMAGE_N);
 
-			for (int j=0; j<32; j++){
-				float sum = 0;
-				for (int x=imin; x<imax; x++){
-					//printf("%f ", argh(i, i + IMAGE_M * j));
+		for (int j=0; j<32; j++){
+			for (int x=imin; x<imax; x++){
+				for (int k=0; k<4; k++){
 					cc_sum(k, i + IMAGE_M * j) += argh(k, x + IMAGE_M * j);
 				}
-			}
-		}
-	}
-	memset(argh.data, 0, sizeof(float) * argh.row * argh.col);
-	for (int k=0; k<4; k++){
-		for (int i=0; i<32; i++){
-			int imin = max(i - host_beta[0],0);
-			int imax = min(i+ host_beta[0] + 1,IMAGE_N);
-			for (int j=0; j<32; j++){
-				float sum = 0;
-				for (int x=imin; x<imax; x++){
-					//printf("%f ", argh(i, i + IMAGE_M * j));
-					argh(k, i + IMAGE_M * j) += cc_sum(k, i + IMAGE_M * x);
-				}
+				cnt(i,j) += count(x,j);
 			}
 		}
 	}
 
-	for (int i=0; i<4; i++){
+	memset(argh.data, 0, sizeof(float) * argh.row * argh.col);
+	memset(count.data, 0, sizeof(int) * count.row * count.col);
+
+	for (int i=0; i<32; i++){
+		int imin = max(i - host_beta[0],0);
+		int imax = min(i+ host_beta[0] + 1,IMAGE_N);
 		for (int j=0; j<32; j++){
-			for (int k=0; k<32; k++){
-				printf("%f ", argh(i, j + IMAGE_M * k));
+			float sum = 0;
+			for (int x=imin; x<imax; x++){
+				for (int k=0; k<4; k++){
+					argh(k, i + IMAGE_M * j) += cc_sum(k, j + IMAGE_M * x);
+				}
+				count(j,i) += cnt(j,x);
 			}
-			printf("\n");
 		}
-		printf("\n");
 	}
+
+
 	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();

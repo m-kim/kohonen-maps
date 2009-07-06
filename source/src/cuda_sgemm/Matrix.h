@@ -30,9 +30,10 @@ public:
 	virtual void print(){
 		for (int i=0; i<this->row; i++){
 			for (int j=0; j<this->col; j++){
-				printf("%f ",(*this)(i,j));
+
+				std::cout << (*this)(i,j) << " ";
 			}
-			printf("\n");
+			std::cout << std::endl;
 		}
 	}
 };
