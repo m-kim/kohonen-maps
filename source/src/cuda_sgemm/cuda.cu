@@ -29,7 +29,7 @@ __global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
 	}
 }
 
-__global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, int _beta)
+__global__ void prepSum(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
@@ -56,12 +56,12 @@ __global__ void update_weights(float *a, float *b, uint *ww_count, uint *count, 
 	}
 }
 
-__global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, uint *count, int _beta, float _alpha)
+__global__ void prepSum2(float *ww, float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
-	int index = row * IMAGE_M + col;
-//	__shared__ float s_ww[IMAGE_N * IMAGE_M];
+
+	//	__shared__ float s_ww[IMAGE_N * IMAGE_M];
 	int _min = max(col - _beta, 0);
 	int _max = min(col + _beta + 1, IMAGE_M);
 
@@ -76,51 +76,33 @@ __global__ void update_weights2(float *ww, float *a, float *b, uint *ww_count, u
 			ww_count[col + IMAGE_M * row] += count[col + IMAGE_M * x];
 		}
 	}
-
-//		for (int i=0; i<VECTOR_SIZE; i++){  //vector size...
-//			for (int k= _min; k<_max; k++){
-//				a[i * IMAGE_MxN + index]  += b[i * IMAGE_MxN + row * IMAGE_M + k];
-//			}
-//		}
-//		for (int k= _min; k<_max; k++){
-//			ww_count[index] += count[row * IMAGE_M + k];
-//		}
-//
-//		for (int i=0; i<VECTOR_SIZE; i++){
-//			if (ww_count[index] == 0)
-//				a[i * IMAGE_MxN + index] = 0;
-//			else
-//				a[ i * IMAGE_MxN + index]  /= (float)ww_count[index];
-//        	ww[i * IMAGE_MxN + index] = abs(ww[i * IMAGE_MxN + index]  +_alpha * (a[i * IMAGE_MxN + index] - ww[i * IMAGE_MxN + index]));
-//		}
-//		for (int i=0; i<VECTOR_SIZE; i++){
-//	    	ww[index] += ww[i * IMAGE_MxN + index];
-//		}
-//		for (int i=0; i<VECTOR_SIZE; i++){
-//			if (ww[index] > 0)
-//				ww[i * IMAGE_MxN + index] /= (float)ww[index];
-//			else
-//				ww[i * IMAGE_MxN + index] = 0;
-//
-//		}
-//	}
-//	__syncthreads();
-//	if (col < IMAGE_M){
-//		for (int i=0; i<VECTOR_SIZE; i++){
-//			if (ww[index] > 0)
-//				ww[i * IMAGE_MxN + index] /= (float)ww[index];
-//			else
-//				ww[i * IMAGE_MxN + index] = 0;
-//
-//		}
-//	}
 }
 
-__global__ void normalize_ww(float *a, unsigned int* ww_count)
+__global__ void updateWeights(float *ww, float *avg_weight, float alpha)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
-	int index = row * IMAGE_M + col;
+	int index =  VECTOR_SIZE * (row + IMAGE_M * col);
+	for (int i=0; i<VECTOR_SIZE; i++){
+		ww[i + index] = abs(ww[i + index] + alpha * (avg_weight[i + index] - ww[i + index]));
+	}
+
+	//we're using avg_weight as a cache
+	avg_weight[index] = 0.0;
+	for (int i=0; i<VECTOR_SIZE; i++){
+		avg_weight[index] += ww[i + index];
+	}
+
+	for (int i=0; i<VECTOR_SIZE; i++){
+		//instead of a check for zero, add some epsilon
+		ww[i + index] /= avg_weight[index] + EPSILON;
+	}
+}
+
+__global__ void normalizeSum(float *a, unsigned int* ww_count)
+{
+	int row = threadIdx.x + blockDim.x * blockIdx.x;
+	int col = threadIdx.y + blockDim.y * blockIdx.y;
 
 	for (int k=0; k<VECTOR_SIZE; k++){
 		//cc_sum(k, i + IMAGE_M * j) = argh(k, i + IMAGE_M * j)/count(j,i);
@@ -130,8 +112,8 @@ __global__ void normalize_ww(float *a, unsigned int* ww_count)
 		else
 			a[k + VECTOR_SIZE * ( row + IMAGE_M * col)] = a[k + VECTOR_SIZE * (row + IMAGE_M * col)]/(float)ww_count[row + IMAGE_M * col];
 	}
-
 }
+
 //Calculate argmax and sum the data vectors
 __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
 {
@@ -487,36 +469,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cc_sum.col = 1024;
 	cc_sum.data = (float*)malloc(cc_sum.row * cc_sum.col *sizeof(float));
 	memset(cc_sum.data, 0 , sizeof(float) * cc_sum.row * cc_sum.col);
-	for (int i=0; i<32; i++){
-		int imin = max(i - host_beta[0],0);
-		int imax = min(i+ host_beta[0] + 1,IMAGE_N);
-
-		for (int j=0; j<32; j++){
-			for (int x=imin; x<imax; x++){
-				for (int k=0; k<4; k++){
-					cc_sum(k, i + IMAGE_M * j) += argh(k, x + IMAGE_M * j);
-				}
-				cnt(i,j) += count(x,j);
-			}
-		}
-	}
-
-	memset(argh.data, 0, sizeof(float) * argh.row * argh.col);
-	memset(count.data, 0, sizeof(int) * count.row * count.col);
-
-	for (int i=0; i<32; i++){
-		int imin = max(i - host_beta[0],0);
-		int imax = min(i+ host_beta[0] + 1,IMAGE_N);
-		for (int j=0; j<32; j++){
-			float sum = 0;
-			for (int x=imin; x<imax; x++){
-				for (int k=0; k<4; k++){
-					argh(k, i + IMAGE_M * j) += cc_sum(k, j + IMAGE_M * x);
-				}
-				count(j,i) += cnt(j,x);
-			}
-		}
-	}
 
 //	for (int k=0; k<4; k++){
 //		for (int i=0; i<32; i++){
@@ -533,14 +485,16 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
 	grid = dim3(2,2);
 	block = dim3(16,16);
-	update_weights<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
+	prepSum<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 
-	update_weights2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0], host_alpha[0]);
+	prepSum2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
-	normalize_ww<<<grid,block>>>(device_sum.data, device_ww_count.data);
+	normalizeSum<<<grid,block>>>(device_sum.data, device_ww_count.data);
 	cudaThreadSynchronize();
-	cudaMemcpy(cc_sum.data, device_sum.data, sizeof(float) * cc_sum.row * cc_sum.col, cudaMemcpyDeviceToHost);
+	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
+
+	cudaMemcpy(cc_sum.data, device_ww.data, sizeof(float) * cc_sum.row * cc_sum.col, cudaMemcpyDeviceToHost);
 	for (int k=0; k<4; k++){
 		for (int i=0; i<32; i++){
 			for (int j=0; j<32; j++){
