@@ -141,13 +141,14 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		}
 	}
 	__syncthreads();
-	if (threadIdx.x < 1){
+	if (threadIdx.x < 1)
 		ret[ argmax[0] ]++;
-		indices[index] = argmax[0];
-	}
+
+	indices[index] = argmax[0];
+
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < VECTOR_SIZE)
-		ww_sum[ argmax[0] *VECTOR_SIZE + threadIdx.x] += data[index * VECTOR_SIZE + threadIdx.x];//ww_sum[ 410 * 16 + threadIdx.x] = data[threadIdx.x];
+		ww_sum[ argmax[0] *VECTOR_SIZE + threadIdx.x] += data[index * VECTOR_SIZE + threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
@@ -157,7 +158,9 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	__shared__ int mm[IMAGE_N];
 	nn[threadIdx.x] = indices[i] / IMAGE_M;
 	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i];
+	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = 0;
+	if (labels[i] < GENOMIC_DATA_COUNT)
+		im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i];
 }
 
 __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_index)
@@ -190,16 +193,6 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 		}
 	}
 	im[index] = 0;
-//	if (genome[0] > genome[1] && genome[0] > genome[2] && genome[0] > genome[3])
-//		im[index] = genome[g_index];
-//	else if (genome[1] > genome[0] && genome[1] > genome[2] && genome[1] > genome[3])
-//		im[index] = genome[g_index];
-//	else if (genome[2] > genome[0] && genome[2] > genome[1] && genome[2] > genome[3])
-//		im[index] = genome[g_index];
-//	else if (genome[3] > genome[0] && genome[3] > genome[1] && genome[3] > genome[2])
-//		im[index] = genome[g_index];
-//	else
-//		im[index] = 0;
 }
 
 __global__ void expandSplitImage(uint *im, const uint *ret)
@@ -233,7 +226,7 @@ __global__ void expandConstantImage(uint *im, const uint *ret)
 
 	for (int i=0; i<16; i++){
 		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]] * ret[y * IMAGE_M + x];
+			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]];
 		}
 	}
 }
@@ -254,20 +247,24 @@ extern "C" void cleanup()
 	cudaFree(device_labels.data);
 	delete  ret, indices;
 }
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,
+		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data,
+		uint *labels, unsigned int *device_regular_pbo,
+		uint *device_split_pbo, unsigned char *device_log_pbo)
 {
     //setup color
 	unsigned char color[COLOR_SIZE * 4];
-	for(unsigned int i=0; i<COLOR_SIZE * 4; i+=4){
-		color[i + 1] = (unsigned char)i;
-		color[i + 2] = (i + 64) % 256;
-		color[i + 3] = (i + 128) % 256;
-		color[i] = (i + 192) % 256;
-	}
+//	for(unsigned int i=0; i<COLOR_SIZE * 4; i+=4){
+//		color[i + 1] = (unsigned char)i;
+//		color[i + 2] = (i + 64) % 256;
+//		color[i + 3] = (i + 128) % 256;
+//		color[i] = (i + 192) % 256;
+//	}
 
-	color[0] = 0;
-	color[1] = 0;
-	color[2] = 0;
+	memset(color, 0, COLOR_SIZE *4);
+	color[0] = 255;
+	color[1] = 255;
+	color[2] = 255;
 	color[3] = 0;
 
 	color[4] = 255;
@@ -300,15 +297,22 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED
 	color[26] = 255;
 	color[27] = 0;
 
-	color[28] = 128;
-	color[29] = 128;
-	color[30] = 128;
+	//dark blue
+	color[28] = 28;
+	color[29] = 47;
+	color[30] = 140;
 	color[31] = 0;
 
-	color[32] = 255;
-	color[33] = 255;
-	color[34] = 255;
+	color[32] = 180;
+	color[33] = 128;
+	color[34] = 128;
 	color[35] = 0;
+
+	//dark green
+	color[36] = 29;
+	color[37] = 75;
+	color[38] = 41;
+	color[39] = 0;
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
@@ -443,12 +447,12 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	block = dim3(16,16);
 	prepSum<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
-
 	prepSum2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	cudaThreadSynchronize();
 	normalizeSum<<<grid,block>>>(device_sum.data, device_ww_count.data);
 	cudaThreadSynchronize();
 	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
+	cudaThreadSynchronize();
 
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
@@ -456,6 +460,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     printf("Run time %f\n\n", time);
     cutResetTimer(timer);
 
+    cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 255, sizeof(int) * IMAGE_MxN);
+    cudaMemset(device_ret.data, 0, GENOMIC_DATA_COUNT * sizeof(int) * IMAGE_MxN);
     block = dim3(16,16);
     grid = dim3(IMAGE_M/16, IMAGE_N/16);
     buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,

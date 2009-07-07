@@ -333,35 +333,32 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *l
 	file.open(filename, std::ifstream::in);
 	std::string str;
 
-	int counter = 0;
+
 	int row = 0;
 	if (!file.good())
 		printf("file bad!\n");
 
 	 while (file.good()){
-	                //getline will retrieve 20000 numbers...
-	                getline(file, str);
-	                if (isdigit(str.c_str()[0])){
-	                        char *tok = strtok((char*)str.c_str(), ",");
-	                        for (int i=0; i<VECTOR_SIZE; i++){
-	                                //16 rows by 20000 cols in the file
-	                                x(offset + row, i) = atof(tok);
-	                                tok = strtok(NULL, " ");
-	                        }
-	                        labels[offset + row] = label_value;
-	                        row++;
-	                }
-	        }
+		//getline will retrieve 20000 numbers...
+		getline(file, str);
+		if (isdigit(str.c_str()[0])){
+			char *tok = strtok((char*)str.c_str(), ",");
+			for (int i=0; i<VECTOR_SIZE; i++){
+					//16 rows by 20000 cols in the file
+					x(offset + row, i) = atof(tok);
+					tok = strtok(NULL, " ");
+			}
+			labels[offset + row] = label_value;
+			row++;
+		}
+	}
 
-	printf("row: %d %d\n",row, counter);
+	printf("row: %d\n",row);
 	file.close();
-
-	printf("%d \n", counter);
 }
 
 int main( int argc, char **argv )
 {
-
 	initGL(argc,argv);
 
 	MATRIX<float> pc1;
@@ -407,6 +404,10 @@ int main( int argc, char **argv )
 	getFile("dm2-100k.fa", x, labels, 2627 + 956 + 999, 3);
 	getFile("dp3-100k.fa", x, labels, 2627 + 956 + 999 + 1052, 4);
 	getFile("galgal2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339, 5);
+	getFile("fr2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
+	getFile("tetnig1-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510, 7);
+	getFile("ci1-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108, 8);
+	getFile("danrer3-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609, 9);
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
 
 
