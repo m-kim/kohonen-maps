@@ -575,11 +575,14 @@ int main( int argc, char **argv )
 	printf("Setup time %f\n\n", time);
 	runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 
+#if RUN_CYCLE
 	for (int i=0; i<host_T; i++){
 		updateWeights();
 		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 		updateConvergence();
 	}
+#endif
+
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );

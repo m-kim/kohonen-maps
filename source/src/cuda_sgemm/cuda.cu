@@ -158,9 +158,9 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	__shared__ int mm[IMAGE_N];
 	nn[threadIdx.x] = indices[i] / IMAGE_M;
 	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = LABEL_COUNT + 1;
+	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = LABEL_COUNT + 1;
 	if (labels[i] < LABEL_COUNT)
-		im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i];
+		im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = labels[i];
 }
 
 __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_index)
