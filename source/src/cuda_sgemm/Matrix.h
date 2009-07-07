@@ -21,6 +21,13 @@ public:
 	T *data;
 	int row;
 	int col;
+	MATRIX<T>(){}
+	MATRIX<T>(int _row, int _col){
+		row = _row;
+		col = _col;
+		data = new T[row * col];
+	}
+
 	virtual T& operator()(int _row, int _col){
 		return this->data[_row + this->row * _col];
 	}
@@ -43,6 +50,9 @@ template<class TYPE, int ORDER = 0>
 class ORDERED_MATRIX:public MATRIX<TYPE>
 {
 public:
+	ORDERED_MATRIX<TYPE, ORDER>():MATRIX<TYPE>(){};
+	ORDERED_MATRIX<TYPE, ORDER>(int _row, int _col):MATRIX<TYPE>(_row,_col){};
+
 	TYPE& operator()(int _row, int _col){
 		if (ORDER == COLUMN_MAJOR)
 			return this->data[_row + this->row * _col];

@@ -158,8 +158,8 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	__shared__ int mm[IMAGE_N];
 	nn[threadIdx.x] = indices[i] / IMAGE_M;
 	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = 0;
-	if (labels[i] < GENOMIC_DATA_COUNT)
+	im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = LABEL_COUNT + 1;
+	if (labels[i] < LABEL_COUNT)
 		im[ nn[threadIdx.x] * IMAGE_M + mm[threadIdx.x]] = labels[i];
 }
 
@@ -220,7 +220,6 @@ __global__ void expandLogImage(unsigned char *im, const uint *ret)
 }
 __global__ void expandConstantImage(uint *im, const uint *ret)
 {
-
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
@@ -247,6 +246,13 @@ extern "C" void cleanup()
 	cudaFree(device_labels.data);
 	delete  ret, indices;
 }
+extern "C" void updateConvergence()
+{
+	host_r++;
+	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - ((float)host_r/host_T)));
+	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
+}
+
 extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,
 		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data,
 		uint *labels, unsigned int *device_regular_pbo,
@@ -258,7 +264,7 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,
 //		color[i + 1] = (unsigned char)i;
 //		color[i + 2] = (i + 64) % 256;
 //		color[i + 3] = (i + 128) % 256;
-//		color[i] = (i + 192) % 256;
+//		color[i] = 0;
 //	}
 
 	memset(color, 0, COLOR_SIZE *4);
@@ -316,10 +322,10 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
-	host_beta[0] = 8;
-	host_beta[1] = 8;
-	host_alpha[0] = .6;
-	host_alpha[1] = .6;
+	host_beta[0] = BETA;
+	host_beta[1] = BETA;
+	host_alpha[0] = ALPHA;
+	host_alpha[1] = ALPHA;
 
 
 	cudaMemset(device_regular_pbo, 128, sizeof(unsigned int) * 512 * 512);
@@ -389,10 +395,41 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,
     printf("setup matrix data %d %d\n", device_data.row, device_data.col);
     cutilSafeCall(cudaMalloc((void**)&device_data.data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
+
+    updateConvergence();
 }
 
+
+extern "C" void updateWeights()
+{
+    //update_weights
+	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
+	dim3 grid(2,2);
+	dim3 block(16,16);
+	prepSum<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
+	cudaThreadSynchronize();
+	prepSum2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
+	cudaThreadSynchronize();
+	normalizeSum<<<grid,block>>>(device_sum.data, device_ww_count.data);
+	cudaThreadSynchronize();
+	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
+	cudaThreadSynchronize();
+//	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(device_ww.row, device_ww.col);
+//	cudaMemcpy(ww.data, device_ww.data, ww.row * ww.col * sizeof(float), cudaMemcpyDeviceToHost);
+//	for (int i=0; i<4; i++){
+//		for (int j=0; j<32; j++){
+//			for(int k=0; k<32;k++){
+//				printf("%f ", ww(i, j + IMAGE_M * k));
+//			}
+//			printf("\n");
+//		}
+//		printf("\n");
+//	}
+}
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
+	printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
+
 	unsigned int timer;
     cutCreateTimer(&timer);
     double time,total_time;
@@ -442,25 +479,13 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cublasShutdown();
 
 
-	cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
-	grid = dim3(2,2);
-	block = dim3(16,16);
-	prepSum<<<grid,block>>>(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
-	cudaThreadSynchronize();
-	prepSum2<<<grid,block>>>(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
-	cudaThreadSynchronize();
-	normalizeSum<<<grid,block>>>(device_sum.data, device_ww_count.data);
-	cudaThreadSynchronize();
-	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
-	cudaThreadSynchronize();
-
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
     printf("Run time %f\n\n", time);
     cutResetTimer(timer);
 
-    cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 255, sizeof(int) * IMAGE_MxN);
+    cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 0, sizeof(int) * IMAGE_MxN);
     cudaMemset(device_ret.data, 0, GENOMIC_DATA_COUNT * sizeof(int) * IMAGE_MxN);
     block = dim3(16,16);
     grid = dim3(IMAGE_M/16, IMAGE_N/16);
@@ -487,10 +512,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	}
 
 #endif
-	host_r++;
-	host_alpha[0] = max(0.01, host_alpha[1] * (1.0 - ((float)host_r/host_T)));
-	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
 
-	printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
    	return EXIT_SUCCESS;
 }

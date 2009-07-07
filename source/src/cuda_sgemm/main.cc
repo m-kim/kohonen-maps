@@ -17,7 +17,9 @@
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
+extern "C" void updateConvergence();
 extern "C" void cleanup();
+extern "C" void updateWeights();
 
 extern "C" int genome_index = 0;
 extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
@@ -68,7 +70,7 @@ float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
 
 
 //N == 10000, S == 20
-int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<MATRIX_TYPE> pc2, MATRIX<MATRIX_TYPE> x)
+int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<MATRIX_TYPE> pc2, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x)
 {
 	float center_vec[F];
 	for (int i=0; i<S; i++){
@@ -77,7 +79,7 @@ int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<M
 		}
 		for (int j=0; j<n; j++){
 			for (int cv_f = 0; cv_f < F; cv_f++){
-				x.data[(i * n + j)*F + cv_f] = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
+				x((i * n + j), cv_f) = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
 			}
 		}
 	}
@@ -158,7 +160,9 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 
+        updateWeights();
         runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+        updateConvergence();
        	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
        	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
        	cutilSafeCall(cudaGLUnmapBufferObject(log_pbo) );
@@ -324,7 +328,38 @@ void initGL( int argc, char **argv )
     }
 }
 
-void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, int offset, uint label_value)
+//void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, int offset, uint label_value)
+//{
+//	std::ifstream file;
+//	char filename[100];
+//	sprintf(filename, "%s%s",DATA_PATH,name.c_str() );
+//	printf("%s\n", filename);
+//	file.open(filename, std::ifstream::in);
+//	std::string str;
+//
+//
+//	int row = 0;
+//	if (!file.good())
+//		printf("file bad!\n");
+//
+//	 while (file.good()){
+//		getline(file, str);
+//		if (isdigit(str.c_str()[0])){
+//			char *tok = strtok((char*)str.c_str(), ",");
+//			for (int i=0; i<VECTOR_SIZE; i++){
+//				//16 rows by 20000 cols in the file
+//				x(offset + row, i) = atof(tok);
+//				tok = strtok(NULL, " ");
+//			}
+//			labels[offset + row] = label_value;
+//			row++;
+//		}
+//	}
+//
+//	printf("row: %d\n",row);
+//	file.close();
+//}
+void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];
@@ -333,30 +368,64 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *l
 	file.open(filename, std::ifstream::in);
 	std::string str;
 
-
+	int counter = 0;
 	int row = 0;
 	if (!file.good())
 		printf("file bad!\n");
+	while (getline(file, str)){
+		//if (isdigit(str.c_str()[0])){
+		char *tok = strtok((char*)str.c_str(), " ");
 
-	 while (file.good()){
-		//getline will retrieve 20000 numbers...
-		getline(file, str);
-		if (isdigit(str.c_str()[0])){
-			char *tok = strtok((char*)str.c_str(), ",");
-			for (int i=0; i<VECTOR_SIZE; i++){
-					//16 rows by 20000 cols in the file
-					x(offset + row, i) = atof(tok);
-					tok = strtok(NULL, " ");
+		//16 rows by 20000 cols in the file
+		float value1 = atof(tok);
+
+		tok = strtok(NULL, " ");
+		float value2 = atof(tok);
+
+		x(row, 0) = cos(3.1415927 * value1 / 180.0f);
+		x(row, 1) = sin(3.1415927 * value1 / 180.0f);
+		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
+		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
+
+		if (value1 < 0 && value1 > -180){
+			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
+						labels[ row] = 4;
 			}
-			labels[offset + row] = label_value;
-			row++;
+			else if ( value2 > -100 && value2 < 50){
+				labels[ row] = 0;
+			}
+			else if (value2 > 50 && value2 < 100){
+				labels[ row] = 1;
+			}
+			else if (value2 > 50 && value2 < 180){
+				counter++;
+				labels[ row] = 2;
+			}
+			else if (value2 > -180 && value2 < -100){
+				labels[ row] = 3;
+			}
+			else
+				labels[row] = 8;
 		}
+		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
+			labels[ row] = 5;
+		}
+		else if (value1 < 180 && value1 > 50 && value2 > 100 && value2 < 180){
+			labels[ row] = 6;
+		}
+		else if (value1 < 180 && value1 > 0 && value2 > -180 && value2 < 110){
+			labels[ row] = 7;
+		}
+		else
+			labels[ row] = 8;
+
+		row++;
 	}
-
-	printf("row: %d\n",row);
+	printf("row: %d %d\n",row, counter);
 	file.close();
-}
 
+	printf("%d \n", counter);
+}
 int main( int argc, char **argv )
 {
 	initGL(argc,argv);
@@ -398,25 +467,25 @@ int main( int argc, char **argv )
 	std::string str;
 	int row = 0;
 
-	getFile("anoGAm1-100k.fa", x, labels, 0, 0);
-	getFile("cb3-100k.fa", x, labels, 2627, 1);
-	getFile("ce2-100k.fa", x, labels, 2627 + 956, 2);
-	getFile("dm2-100k.fa", x, labels, 2627 + 956 + 999, 3);
-	getFile("dp3-100k.fa", x, labels, 2627 + 956 + 999 + 1052, 4);
-	getFile("galgal2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339, 5);
-	getFile("fr2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
-	getFile("tetnig1-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510, 7);
-	getFile("ci1-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108, 8);
-	getFile("danrer3-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609, 9);
+//	getFile("anoGAm1-100k.fa", x, labels, 0, 0);
+//	getFile("cb3-100k.fa", x, labels, 2627, 1);
+//	getFile("ce2-100k.fa", x, labels, 2627 + 956, 2);
+//	getFile("dm2-100k.fa", x, labels, 2627 + 956 + 999, 3);
+//	getFile("dp3-100k.fa", x, labels, 2627 + 956 + 999 + 1052, 4);
+//	getFile("galgal2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339, 5);
+//	getFile("fr2-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
+//	getFile("tetnig1-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510, 7);
+//	getFile("ci1-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108, 8);
+//	getFile("danrer3-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609, 9);
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
 
 
-//	getFile("output", x, labels, 0);
+	getFile("output", x, labels, 0,0);
 
-//	make_data(1000, 20, VECTOR_SIZE, 3.0, pc1, pc2, x);
-//	for (int i=0; i<20; i++){
-//		for (int j=0; j<1000; j++){
-//			labels[i * 1000 + j] = i;
+//	make_data(2000, GENOMIC_DATA_COUNT, VECTOR_SIZE, 3.0, pc1, pc2, x);
+//	for (int i=0; i<GENOMIC_DATA_COUNT; i++){
+//		for (int j=0; j<2000; j++){
+//			labels[i * 2000 + j] = i;
 //		}
 //	}
 
@@ -504,8 +573,13 @@ int main( int argc, char **argv )
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
-	//for (int i=0; i<host_T; i++)
+	runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+
+	for (int i=0; i<host_T; i++){
+		updateWeights();
 		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+		updateConvergence();
+	}
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
