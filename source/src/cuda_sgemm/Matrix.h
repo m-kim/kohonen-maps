@@ -28,6 +28,7 @@ public:
 		data = new T[row * col];
 	}
 
+	~MATRIX<T>(){delete this->data;};
 	virtual T& operator()(int _row, int _col){
 		return this->data[_row + this->row * _col];
 	}
@@ -52,6 +53,7 @@ class ORDERED_MATRIX:public MATRIX<TYPE>
 public:
 	ORDERED_MATRIX<TYPE, ORDER>():MATRIX<TYPE>(){};
 	ORDERED_MATRIX<TYPE, ORDER>(int _row, int _col):MATRIX<TYPE>(_row,_col){};
+
 
 	TYPE& operator()(int _row, int _col){
 		if (ORDER == COLUMN_MAJOR)
@@ -126,7 +128,7 @@ public:
 		}
 	}
 
-	void pca(MATRIX<TYPE> pca1, MATRIX<TYPE> pca2)
+	void pca(MATRIX<TYPE> &pca1, MATRIX<TYPE> &pca2)
 	{
 		printf("Entering PCA...\n");
 		//16 x 20000 means a 16x16 covariance matrix

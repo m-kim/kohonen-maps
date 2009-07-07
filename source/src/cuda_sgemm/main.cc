@@ -15,7 +15,7 @@
 #include <cutil_gl_inline.h>
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" void updateConvergence();
 extern "C" void cleanup();
@@ -51,7 +51,7 @@ float stdDev(const MATRIX<MATRIX_TYPE> &mat)
 	return sqrt(sum / (mat.row - 1));
 }
 
-float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
+float dot(MATRIX<MATRIX_TYPE> &one, MATRIX<MATRIX_TYPE> &two, int col)
 {
 	float sum = 0;
 	for (int i=0; i<one.row; i++){
@@ -70,7 +70,7 @@ float dot(MATRIX<MATRIX_TYPE> one, MATRIX<MATRIX_TYPE> two, int col)
 
 
 //N == 10000, S == 20
-int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> pc1, MATRIX<MATRIX_TYPE> pc2, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x)
+int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> &pc1, MATRIX<MATRIX_TYPE> &pc2, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
 {
 	float center_vec[F];
 	for (int i=0; i<S; i++){
@@ -328,7 +328,7 @@ void initGL( int argc, char **argv )
     }
 }
 
-//void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, int offset, uint label_value)
+//void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *labels, int offset, uint label_value)
 //{
 //	std::ifstream file;
 //	char filename[100];
@@ -359,7 +359,7 @@ void initGL( int argc, char **argv )
 //	printf("row: %d\n",row);
 //	file.close();
 //}
-void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x, uint *labels, uint offset, uint label_value)
+void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];

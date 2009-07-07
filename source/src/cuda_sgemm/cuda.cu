@@ -19,13 +19,13 @@ int host_r = -1, host_beta[2];
 __constant__ uint constant_color[COLOR_SIZE];
 
 
-__global__ void calc_ww2(const MATRIX<MATRIX_TYPE> ww, MATRIX_TYPE *ww2)
+__global__ void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	for (int j=0; j<VECTOR_SIZE; j++){
 		//this shouldn't be backwards...*sigh*
-		ww2[i] += pow(ww.data[i * ww.row + j ],2);
+		ww2[i] += pow(ww[i * 16 + j ], 2);
 	}
 }
 
@@ -158,7 +158,7 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	__shared__ int mm[IMAGE_N];
 	nn[threadIdx.x] = indices[i] / IMAGE_M;
 	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = LABEL_COUNT + 1;
+	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = LABEL_COUNT;
 	if (labels[i] < LABEL_COUNT)
 		im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = labels[i];
 }
@@ -167,7 +167,7 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 {
 	uint tidx = threadIdx.x + blockDim.x * blockIdx.x;
 	uint tidy = threadIdx.y + blockDim.y * blockIdx.y;
-	uint index = tidx * IMAGE_N + tidy;
+	uint index = tidx + IMAGE_N * tidy;
 
 	int genome[GENOMIC_DATA_COUNT];
 
@@ -253,10 +253,7 @@ extern "C" void updateConvergence()
 	host_beta[0] = max(0., host_beta[1] - host_r / 1.5);
 }
 
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> ww,
-		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> data,
-		uint *labels, unsigned int *device_regular_pbo,
-		uint *device_split_pbo, unsigned char *device_log_pbo)
+extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo)
 {
     //setup color
 	unsigned char color[COLOR_SIZE * 4];
@@ -414,17 +411,17 @@ extern "C" void updateWeights()
 	cudaThreadSynchronize();
 	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
 	cudaThreadSynchronize();
-//	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(device_ww.row, device_ww.col);
-//	cudaMemcpy(ww.data, device_ww.data, ww.row * ww.col * sizeof(float), cudaMemcpyDeviceToHost);
-//	for (int i=0; i<4; i++){
-//		for (int j=0; j<32; j++){
-//			for(int k=0; k<32;k++){
-//				printf("%f ", ww(i, j + IMAGE_M * k));
-//			}
-//			printf("\n");
-//		}
-//		printf("\n");
-//	}
+	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(device_ww.row, device_ww.col);
+	cudaMemcpy(ww.data, device_ww.data, ww.row * ww.col * sizeof(float), cudaMemcpyDeviceToHost);
+	for (int i=0; i<4; i++){
+		for (int j=0; j<32; j++){
+			for(int k=0; k<32;k++){
+				printf("%f ", ww(i, j + IMAGE_M * k));
+			}
+			printf("\n");
+		}
+		printf("\n");
+	}
 }
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
@@ -447,7 +444,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
 
     //this is related to IMAGE_MXN
-    calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww,device_ww2.data);
+    calc_ww2<<<IMAGE_MxN/128,128>>>(device_ww.data,device_ww2.data);
     cudaThreadSynchronize();
 
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
