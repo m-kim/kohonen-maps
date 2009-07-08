@@ -10,9 +10,6 @@ MATRIX<MATRIX_TYPE> device_ww2, device_save, device_sum, device_scratch;
 MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
 ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> device_ww, device_data;
 
-
-unsigned int *ret, *indices;
-
 float host_alpha[2];
 int host_r = -1, host_beta[2];
 
@@ -244,7 +241,6 @@ extern "C" void cleanup()
     cudaFree (device_ww2.data);
 	cudaFree(device_indices.data);
 	cudaFree(device_labels.data);
-	delete  ret, indices;
 }
 extern "C" void updateConvergence()
 {
@@ -383,10 +379,6 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
     device_save.col = device_ww2.col;
     device_save.data = device_scratch.data;
 
-
-	ret = (unsigned int*)malloc(sizeof(unsigned int) * ww.row);
-	indices = (uint*)malloc(sizeof(uint) * data.row);
-
     device_data.row = data.row;
     device_data.col = data.col;
     printf("setup matrix data %d %d\n", device_data.row, device_data.col);
@@ -411,6 +403,7 @@ extern "C" void updateWeights()
 	cudaThreadSynchronize();
 	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
 	cudaThreadSynchronize();
+#if DEBUG_PRINT
 	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(device_ww.row, device_ww.col);
 	cudaMemcpy(ww.data, device_ww.data, ww.row * ww.col * sizeof(float), cudaMemcpyDeviceToHost);
 	for (int i=0; i<4; i++){
@@ -422,6 +415,7 @@ extern "C" void updateWeights()
 		}
 		printf("\n");
 	}
+#endif
 }
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
