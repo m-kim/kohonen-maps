@@ -25,7 +25,7 @@ __global__ void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 
 	for (int j=0; j<VECTOR_SIZE; j++){
 		//this shouldn't be backwards...*sigh*
-		ww2[i] += pow(ww[i * 16 + j ], 2);
+		ww2[i] += pow(ww[i * VECTOR_SIZE + j ], 2);
 	}
 }
 
@@ -325,9 +325,9 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 	host_alpha[1] = ALPHA;
 
 
-	cudaMemset(device_regular_pbo, 128, sizeof(unsigned int) * 512 * 512);
-	cudaMemset(device_split_pbo, 128, sizeof(unsigned int) * 512 * 512);
-	cudaMemset(device_log_pbo, 128, sizeof(unsigned char) * 512 * 512);
+	cudaMemset(device_regular_pbo, 0, sizeof(unsigned int) * 512 * 512);
+	cudaMemset(device_split_pbo, 0, sizeof(unsigned int) * 512 * 512);
+	cudaMemset(device_log_pbo, 0, sizeof(unsigned char) * 512 * 512);
 
 	device_labels.row = data.row;
 	device_labels.col = 1;
@@ -475,7 +475,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cublasShutdown();
 
-
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -494,7 +493,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 	generateSplitImage(genome_index, device_split_pbo);
-
 
     printf("Total Time: %f\n\n", total_time);
 #if DEBUG_PRINT

@@ -515,7 +515,6 @@ int main( int argc, char **argv )
 	float std1 = stdDev(pd1);
 	float std2 = stdDev(pd2);
 
-
 	//resize...
 	//ummm...this is only if M is "None"
 	//M = int(N * std2 / std1);
