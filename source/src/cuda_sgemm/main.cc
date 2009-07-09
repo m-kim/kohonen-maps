@@ -367,15 +367,19 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *
 	while (getline(file, str)){
 		//if (isdigit(str.c_str()[0])){
 		char *tok = strtok((char*)str.c_str(), " ");
+//		//16 rows by 20000 cols in the file
+//		float value1 = atof(tok);
+//
+//		tok = strtok(NULL, " ");
+//		float value2 = atof(tok);
 
-		//16 rows by 20000 cols in the file
-		float value1 = atof(tok);
-
-		tok = strtok(NULL, " ");
-		float value2 = atof(tok);
-
-		x(row, 0) = value1;//cos(3.1415927 * value1 / 180.0f);
-		x(row, 1) = value2;//sin(3.1415927 * value1 / 180.0f);
+		x(row, 0) = atof(tok);
+		for (int i=1; i<VECTOR_SIZE; i++){
+			tok = strtok(NULL, " ");
+			x(row, i) = atof(tok);;
+		}
+		//cos(3.1415927 * value1 / 180.0f);
+//		x(row, 1) = value2;//sin(3.1415927 * value1 / 180.0f);
 //		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
 //		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
 
@@ -411,7 +415,7 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *
 //		else
 //			labels[ row] = 8;
 		tok = strtok(NULL, " ");
-		labels[row] = atof(tok);
+		labels[row] = atoi(tok);
 		row++;
 	}
 	printf("row: %d %d\n",row, counter);

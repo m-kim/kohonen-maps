@@ -154,10 +154,12 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	uint col = threadIdx.y + blockDim.y * blockIdx.y;
 	uint index = row + IMAGE_M * col;
 
+	im[index] = LABEL_COUNT + 2;
 	for (int i=0; i<DATA_SIZE; i++){
 		if (indices[i] == index)
 			im[index] = labels[i];
 	}
+
 //	__shared__ int nn[IMAGE_N];
 //	__shared__ int mm[IMAGE_N];
 //	nn[threadIdx.x] = indices[i] / IMAGE_M;
@@ -275,31 +277,37 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 	color[2] = 41;
 	color[3] = 0;
 
+	//red
 	color[4] = 255;
 	color[5] = 0;
 	color[6] = 0;
 	color[7] = 0;
 
+	//green
 	color[8] = 0;
 	color[9] = 255;
 	color[10] = 0;
 	color[11] = 0;
 
+	//blue
 	color[12] = 0;
 	color[13] = 0;
 	color[14] = 255;
 	color[15] = 0;
 
+	//yellow
 	color[16] = 255;
 	color[17] = 255;
 	color[18] = 0;
 	color[19] = 0;
 
+	//purple
 	color[20] = 255;
 	color[21] = 0;
 	color[22] = 255;
 	color[23] = 0;
 
+	//cyan
 	color[24] = 0;
 	color[25] = 255;
 	color[26] = 255;
@@ -311,10 +319,12 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 	color[30] = 140;
 	color[31] = 0;
 
-//	color[32] = 180;
-//	color[33] = 128;
-//	color[34] = 128;
-//	color[35] = 0;
+	color[32] = 180;
+	color[33] = 128;
+	color[34] = 128;
+	color[35] = 0;
+
+	//this is the empty space
 	color[32] = 0;
 	color[33] = 0;
 	color[34] = 0;
@@ -491,6 +501,17 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     grid = dim3(IMAGE_M/16, IMAGE_N/16);
     buildImage<<<grid, block>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
     											device_labels.data,device_indices.data);
+    cudaThreadSynchronize();
+
+//    MATRIX<unsigned int> tmp(9216,1);
+//    cutilSafeCall(cudaMemcpy(tmp.data, device_ret.data,sizeof(int) * 9216, cudaMemcpyDeviceToHost));
+//    for (int i=0; i<32; i++){
+//    	for (int j=0; j<32; j++){
+//    		printf("%d ", tmp.data[8192 + i + IMAGE_M * j]);
+//    	}
+//    	printf("\n");
+//    }
+
     expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 
 //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
