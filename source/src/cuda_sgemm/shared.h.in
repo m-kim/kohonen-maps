@@ -1,6 +1,6 @@
 #include "Matrix.h"
 
-#define RUN_CYCLE 0
+#define RUN_CYCLE 1
 #define IDX2C(i,j,ld) (((j)*(ld))+(i))
 #define DEBUG_PRINT 0
 #define IDX(i,j,ld) (((i)*(ld)) + (j))
@@ -8,14 +8,14 @@
 #define IMAGE_N 32
 #define IMAGE_MxN IMAGE_M * IMAGE_N
 #define VECTOR_SIZE 2
-#define REDUCE_BLOCKSIZE 32
-#define LOG2_REDUCE_BLOCKSIZE 5
+#define REDUCE_BLOCKSIZE 128
+#define LOG2_REDUCE_BLOCKSIZE 7
 
 #define COLOR_SIZE 16382
 #define LUMINANCE_ADJUSTMENT 67108864//13421772
 
-#define BETA 8
-#define ALPHA 1
+#define BETA 4
+#define ALPHA .6
 
 #define PCA_SIZE 512
 
@@ -32,8 +32,6 @@ typedef float MATRIX_TYPE;
 #define LABEL_COUNT 8
 #define GENOMIC_DATA_COUNT 8
 #define DATA_SIZE 3081//(2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609 + 15943) // 112827//1128274 //(26306 + 9581 + 10026 + 12788)
-
-#define BUILD_IMAGE_GRID_SIZE DATA_SIZE/32
 
 
 /*

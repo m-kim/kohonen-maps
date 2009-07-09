@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cutil_inline.h>
 
 #ifndef MATRIX_H
 #define MATRIX_H
@@ -28,7 +29,7 @@ public:
 		data = new T[row * col];
 	}
 
-	~MATRIX<T>(){delete this->data;};
+	~MATRIX<T>(){cudaFree( this->data );};
 	virtual T& operator()(int _row, int _col){
 		return this->data[_row + this->row * _col];
 	}
@@ -44,6 +45,21 @@ public:
 			std::cout << std::endl;
 		}
 	}
+
+	float stdDev()
+	{
+		float mean_x = 0;
+		for (int i=0; i<row; i++){
+			mean_x += data[i];
+		}
+		mean_x /= row;
+		float sum = 0;
+		for (int i=0; i<row; i++){
+			sum += pow(data[i] - mean_x, 2);
+		}
+		return sqrt(sum / (row - 1));
+	}
+
 };
 
 

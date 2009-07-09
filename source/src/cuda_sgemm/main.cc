@@ -21,7 +21,7 @@ extern "C" void updateConvergence();
 extern "C" void cleanup();
 extern "C" void updateWeights();
 
-extern "C" int genome_index = 0;
+int genome_index;
 extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
 
 int counter = 0;
@@ -38,19 +38,6 @@ GLuint pbo = 0;
 GLuint displayRegTex = 0, displaySplitTex = 0, display_log_tex = 0;
 unsigned int width = 1024, height = 1024;
 
-float stdDev(const MATRIX<MATRIX_TYPE> &mat)
-{
-	float mean_x = 0;
-	for (int i=0; i<mat.row; i++){
-		mean_x += mat.data[i];
-	}
-	mean_x /= mat.row;
-	float sum = 0;
-	for (int i=0; i<mat.row; i++){
-		sum += pow(mat.data[i] - mean_x, 2);
-	}
-	return sqrt(sum / (mat.row - 1));
-}
 
 float dot(MATRIX<MATRIX_TYPE> &one, MATRIX<MATRIX_TYPE> &two, int col)
 {
@@ -473,6 +460,7 @@ int main( int argc, char **argv )
 	std::string str;
 	int row = 0;
 
+	genome_index = 0;
 //	getFile("anoGAm1-100k.fa", x, labels, 0, 0);
 //	getFile("cb3-100k.fa", x, labels, 2627, 1);
 //	getFile("ce2-100k.fa", x, labels, 2627 + 956, 2);
@@ -498,8 +486,10 @@ int main( int argc, char **argv )
 	//x.normalize();
 	x.pca(pc1,pc2);
 
-	printf("pc1: %f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
-	printf("pc2: %f %f %f %f\n", pc2.data[0], pc2.data[1],pc2.data[2], pc2.data[3]);
+	printf("pc1: ");
+	pc1.print();
+	printf("pc2: ");
+	pc2.print();
 
 	//mean0 == dm
 	//dm should be shape = (16,)
@@ -518,8 +508,8 @@ int main( int argc, char **argv )
 /*****************************************************************************************
  * scale map
  */
-	float std1 = stdDev(pd1);
-	float std2 = stdDev(pd2);
+	float std1 = pd1.stdDev();
+	float std2 = pd2.stdDev();
 
 	//resize...
 	//ummm...this is only if M is "None"
@@ -588,5 +578,5 @@ int main( int argc, char **argv )
 
 
 	cleanup();
-	delete pc1.data, pc2.data, x.data, dm, pd1, pd2, data_dm, b1,b2,ww.data,labels;
+	delete dm, b1,b2,labels;
 };

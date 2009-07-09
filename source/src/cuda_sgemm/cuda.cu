@@ -269,9 +269,10 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 //	}
 
 	memset(color, 0, COLOR_SIZE *4);
-	color[0] = 255;
-	color[1] = 255;
-	color[2] = 255;
+	//dark green
+	color[0] = 29;
+	color[1] = 75;
+	color[2] = 41;
 	color[3] = 0;
 
 	color[4] = 255;
@@ -319,11 +320,6 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 	color[34] = 0;
 	color[35] = 0;
 
-	//dark green
-	color[0] = 29;
-	color[1] = 75;
-	color[2] = 41;
-	color[3] = 0;
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
@@ -429,7 +425,7 @@ extern "C" void updateWeights()
 	}
 #endif
 }
-int looper = 0;
+
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
 	//printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
@@ -457,8 +453,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<DATA_SIZE; i++){
-//    	if ( !(i % 10000) )
-//    		printf("%d\n",i);
+    	if ( !(i % 10000) )
+    		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_data.col,
@@ -483,23 +479,10 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 
     cublasShutdown();
 
-    ORDERED_MATRIX<int, COLUMN_MAJOR> tmp(device_indices.row, device_indices.col);
-
-    cudaMemcpy(tmp.data, device_indices.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
-
-	ORDERED_MATRIX<int, COLUMN_MAJOR> tmp2(device_labels.row, device_labels.col);
-	cudaMemcpy(tmp2.data, device_labels.data, tmp2.row * tmp.col *sizeof(int), cudaMemcpyDeviceToHost);
-
-
-	for (int i=0; i<tmp.row; i++){
-		printf(">%d %d %d\n", looper, tmp.data[i], tmp2.data[i]);
-	}
-
-	looper++;
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
-    //printf("Run time %f\n\n", time);
+    printf("Run time %f\n\n", time);
     cutResetTimer(timer);
 
     cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 0, sizeof(int) * IMAGE_MxN);
@@ -508,12 +491,13 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     grid = dim3(IMAGE_M/16, IMAGE_N/16);
     buildImage<<<grid, block>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
     											device_labels.data,device_indices.data);
-    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
-    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
-
     expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
-	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
-	generateSplitImage(genome_index, device_split_pbo);
+
+//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+//    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
+//
+//	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+//	generateSplitImage(genome_index, device_split_pbo);
 
     //printf("Total Time: %f\n\n", total_time);
 #if DEBUG_PRINT
