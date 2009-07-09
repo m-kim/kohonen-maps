@@ -150,14 +150,22 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
 {
-	uint i = threadIdx.x + blockDim.x * blockIdx.x;
-	__shared__ int nn[IMAGE_N];
-	__shared__ int mm[IMAGE_N];
-	nn[threadIdx.x] = indices[i] / IMAGE_M;
-	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = LABEL_COUNT;
-	if (labels[i] < LABEL_COUNT)
-		im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = labels[i];
+	uint row = threadIdx.x + blockDim.x * blockIdx.x;
+	uint col = threadIdx.y + blockDim.y * blockIdx.y;
+	uint index = row + IMAGE_M * col;
+
+	for (int i=0; i<DATA_SIZE; i++){
+		if (indices[i] == index)
+			im[index] = labels[i];
+	}
+//	__shared__ int nn[IMAGE_N];
+//	__shared__ int mm[IMAGE_N];
+//	nn[threadIdx.x] = indices[i] / IMAGE_M;
+//	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
+//	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = 0;
+//	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = LABEL_COUNT;
+//	if (labels[i] < LABEL_COUNT)
+//		im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = labels[i];
 }
 
 __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_index)
@@ -302,9 +310,13 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 	color[30] = 140;
 	color[31] = 0;
 
-	color[32] = 180;
-	color[33] = 128;
-	color[34] = 128;
+//	color[32] = 180;
+//	color[33] = 128;
+//	color[34] = 128;
+//	color[35] = 0;
+	color[32] = 0;
+	color[33] = 0;
+	color[34] = 0;
 	color[35] = 0;
 
 	//dark green
@@ -494,7 +506,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cudaMemset(device_ret.data, 0, GENOMIC_DATA_COUNT * sizeof(int) * IMAGE_MxN);
     block = dim3(16,16);
     grid = dim3(IMAGE_M/16, IMAGE_N/16);
-    buildImage<<<BUILD_IMAGE_GRID_SIZE,32>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
+    buildImage<<<grid, block>>>(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
     											device_labels.data,device_indices.data);
     for (int i=0; i<GENOMIC_DATA_COUNT; i++)
     	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);

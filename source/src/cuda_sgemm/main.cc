@@ -61,16 +61,11 @@ float dot(MATRIX<MATRIX_TYPE> &one, MATRIX<MATRIX_TYPE> &two, int col)
 	return sum;
 }
 
-
-
 //column major order doesn't matter for sgesvd_
 //the matrix pumped out of cov is singular
 //however, the matrix returned will be in column major order
 //so, that needs to be taken into account...
 
-
-
-//N == 10000, S == 20
 int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> &pc1, MATRIX<MATRIX_TYPE> &pc2, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
 {
 	float center_vec[F];
