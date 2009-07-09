@@ -24,8 +24,9 @@ extern "C" void updateWeights();
 extern "C" int genome_index = 0;
 extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
 
+int counter = 0;
 int split_som_window = 0, som_window = 0;
-float expansion = 4;
+float expansion = 2;
 float bin1, bin2;
 uint *d_split_output;
 uchar4 **d_regular_output;
@@ -90,6 +91,15 @@ int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> &pc1, MATRIX<
 void display()
 {
 	glutSetWindow(som_window);
+
+#if RUN_CYCLE
+	if (counter < host_T){
+		counter++;
+		updateWeights();
+		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+		updateConvergence();
+	}
+#endif
 
 	// display results
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -382,43 +392,44 @@ void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *
 		tok = strtok(NULL, " ");
 		float value2 = atof(tok);
 
-		x(row, 0) = cos(3.1415927 * value1 / 180.0f);
-		x(row, 1) = sin(3.1415927 * value1 / 180.0f);
-		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
-		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
+		x(row, 0) = value1;//cos(3.1415927 * value1 / 180.0f);
+		x(row, 1) = value2;//sin(3.1415927 * value1 / 180.0f);
+//		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
+//		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
 
-		if (value1 < 0 && value1 > -180){
-			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
-						labels[ row] = 4;
-			}
-			else if ( value2 > -100 && value2 < 50){
-				labels[ row] = 0;
-			}
-			else if (value2 > 50 && value2 < 100){
-				labels[ row] = 1;
-			}
-			else if (value2 > 50 && value2 < 180){
-				counter++;
-				labels[ row] = 2;
-			}
-			else if (value2 > -180 && value2 < -100){
-				labels[ row] = 3;
-			}
-			else
-				labels[row] = 8;
-		}
-		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
-			labels[ row] = 5;
-		}
-		else if (value1 < 180 && value1 > 50 && value2 > 100 && value2 < 180){
-			labels[ row] = 6;
-		}
-		else if (value1 < 180 && value1 > 0 && value2 > -180 && value2 < 110){
-			labels[ row] = 7;
-		}
-		else
-			labels[ row] = 8;
-
+//		if (value1 < 0 && value1 > -180){
+//			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
+//						labels[ row] = 4;
+//			}
+//			else if ( value2 > -100 && value2 < 50){
+//				labels[ row] = 0;
+//			}
+//			else if (value2 > 50 && value2 < 100){
+//				labels[ row] = 1;
+//			}
+//			else if (value2 > 50 && value2 < 180){
+//				counter++;
+//				labels[ row] = 2;
+//			}
+//			else if (value2 > -180 && value2 < -100){
+//				labels[ row] = 3;
+//			}
+//			else
+//				labels[row] = 8;
+//		}
+//		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
+//			labels[ row] = 5;
+//		}
+//		else if (value1 < 180 && value1 > 50 && value2 > 100 && value2 < 180){
+//			labels[ row] = 6;
+//		}
+//		else if (value1 < 180 && value1 > 0 && value2 > -180 && value2 < 110){
+//			labels[ row] = 7;
+//		}
+//		else
+//			labels[ row] = 8;
+		tok = strtok(NULL, " ");
+		labels[row] = atof(tok);
 		row++;
 	}
 	printf("row: %d %d\n",row, counter);
@@ -480,7 +491,7 @@ int main( int argc, char **argv )
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
 
 
-	getFile("output", x, labels, 0,0);
+	getFile("foop_short", x, labels, 0,0);
 
 //	make_data(2000, GENOMIC_DATA_COUNT, VECTOR_SIZE, 3.0, pc1, pc2, x);
 //	for (int i=0; i<GENOMIC_DATA_COUNT; i++){
@@ -489,7 +500,7 @@ int main( int argc, char **argv )
 //		}
 //	}
 
-	x.normalize();
+	//x.normalize();
 	x.pca(pc1,pc2);
 
 	printf("pc1: %f %f %f %f\n", pc1.data[0], pc1.data[1],pc1.data[2], pc1.data[3]);
@@ -573,14 +584,6 @@ int main( int argc, char **argv )
 	time = cutGetTimerValue(timer);
 	printf("Setup time %f\n\n", time);
 	runCuda((uint*)d_regular_output, d_split_output, d_log_output);
-
-#if RUN_CYCLE
-	for (int i=0; i<host_T; i++){
-		updateWeights();
-		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
-		updateConvergence();
-	}
-#endif
 
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );

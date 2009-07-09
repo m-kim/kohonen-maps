@@ -50,12 +50,10 @@ __global__ void prepSum2(float *ww, float *a, float *b, uint *ww_count, uint *co
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
 
 	//	__shared__ float s_ww[IMAGE_N * IMAGE_M];
-	int _min = max(col - _beta, 0);
-	int _max = min(col + _beta + 1, IMAGE_M);
 
 	if (col < IMAGE_M){
-		int imin = max(row - _beta,0);
-		int imax = min(row + _beta + 1,IMAGE_N);
+		int imin = max(col - _beta,0);
+		int imax = min(col + _beta + 1,IMAGE_N);
 		float sum = 0;
 		for (int x=imin; x<imax; x++){
 			for (int k=0; k<VECTOR_SIZE; k++){
@@ -72,19 +70,22 @@ __global__ void updateWeights(float *ww, float *avg_weight, float alpha)
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
 	int index =  VECTOR_SIZE * (row + IMAGE_M * col);
 	for (int i=0; i<VECTOR_SIZE; i++){
-		ww[i + index] = abs(ww[i + index] + alpha * (avg_weight[i + index] - ww[i + index]));
+		ww[i + index] = ww[i + index] + abs(alpha * (avg_weight[i + index] - ww[i + index]));
 	}
 
-	//we're using avg_weight as a cache
-	avg_weight[index] = 0.0;
-	for (int i=0; i<VECTOR_SIZE; i++){
-		avg_weight[index] += ww[i + index];
-	}
-
-	for (int i=0; i<VECTOR_SIZE; i++){
-		//instead of a check for zero, add some epsilon
-		ww[i + index] /= avg_weight[index] + EPSILON;
-	}
+//	//we're using avg_weight as a cache
+//	avg_weight[index] = 0.0;
+//	for (int i=0; i<VECTOR_SIZE; i++){
+//		avg_weight[index] += ww[i + index];
+//	}
+//
+//	for (int i=0; i<VECTOR_SIZE; i++){
+//		//instead of a check for zero, add some epsilon
+//		if (abs(avg_weight[index]) < .00001)
+//			ww[i + index] = 0;
+//		else
+//			ww[i + index] /= avg_weight[index];
+//	}
 }
 
 __global__ void normalizeSum(float *a, unsigned int* ww_count)
@@ -138,11 +139,10 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		}
 	}
 	__syncthreads();
-	if (threadIdx.x < 1)
+	if (threadIdx.x < 1){
 		ret[ argmax[0] ]++;
-
-	indices[index] = argmax[0];
-
+		indices[index] = argmax[0];
+	}
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < VECTOR_SIZE)
 		ww_sum[ argmax[0] *VECTOR_SIZE + threadIdx.x] += data[index * VECTOR_SIZE + threadIdx.x];
@@ -164,7 +164,7 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 {
 	uint tidx = threadIdx.x + blockDim.x * blockIdx.x;
 	uint tidy = threadIdx.y + blockDim.y * blockIdx.y;
-	uint index = tidx + IMAGE_N * tidy;
+	uint index = tidx * IMAGE_N + tidy;
 
 	int genome[GENOMIC_DATA_COUNT];
 
@@ -189,7 +189,7 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 			return;
 		}
 	}
-	im[index] = 0;
+	im[index] = GENOMIC_DATA_COUNT;
 }
 
 __global__ void expandSplitImage(uint *im, const uint *ret)
@@ -308,10 +308,10 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 	color[35] = 0;
 
 	//dark green
-	color[36] = 29;
-	color[37] = 75;
-	color[38] = 41;
-	color[39] = 0;
+	color[0] = 29;
+	color[1] = 75;
+	color[2] = 41;
+	color[3] = 0;
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
@@ -417,9 +417,10 @@ extern "C" void updateWeights()
 	}
 #endif
 }
+int looper = 0;
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
-	printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
+	//printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
 
 	unsigned int timer;
     cutCreateTimer(&timer);
@@ -444,8 +445,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<DATA_SIZE; i++){
-    	if ( !(i % 10000) )
-    		printf("%d\n",i);
+//    	if ( !(i % 10000) )
+//    		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_data.col,
@@ -467,12 +468,26 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
         	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
     }
 
+
     cublasShutdown();
 
+    ORDERED_MATRIX<int, COLUMN_MAJOR> tmp(device_indices.row, device_indices.col);
+
+    cudaMemcpy(tmp.data, device_indices.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
+
+	ORDERED_MATRIX<int, COLUMN_MAJOR> tmp2(device_labels.row, device_labels.col);
+	cudaMemcpy(tmp2.data, device_labels.data, tmp2.row * tmp.col *sizeof(int), cudaMemcpyDeviceToHost);
+
+
+	for (int i=0; i<tmp.row; i++){
+		printf(">%d %d %d\n", looper, tmp.data[i], tmp2.data[i]);
+	}
+
+	looper++;
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
-    printf("Run time %f\n\n", time);
+    //printf("Run time %f\n\n", time);
     cutResetTimer(timer);
 
     cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 0, sizeof(int) * IMAGE_MxN);
@@ -488,7 +503,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 	generateSplitImage(genome_index, device_split_pbo);
 
-    printf("Total Time: %f\n\n", total_time);
+    //printf("Total Time: %f\n\n", total_time);
 #if DEBUG_PRINT
     unsigned char count[262144];
     cutilSafeCall(cudaMemcpy(count, device_log_pbo, sizeof(unsigned char) * 262144, cudaMemcpyDeviceToHost));
