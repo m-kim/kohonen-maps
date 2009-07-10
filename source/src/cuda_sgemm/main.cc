@@ -14,6 +14,8 @@
 #include <cutil_inline.h>
 #include <cutil_gl_inline.h>
 
+#include "Tokenizer.h"
+
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
@@ -21,7 +23,14 @@ extern "C" void updateConvergence();
 extern "C" void cleanup();
 extern "C" void updateWeights();
 
-int genome_index;
+int DATA_SIZE = 3081;  //(2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609 + 15943) // 112827//1128274 //(26306 + 9581 + 10026 + 12788)
+int VECTOR_SIZE = 2;
+int BETA = 4;
+float ALPHA = .6;
+int host_T = 10;
+int genome_index = 0;
+int DEBUG_PRINT = 0;
+
 extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
 
 int counter = 0;
@@ -39,14 +48,6 @@ GLuint displayRegTex = 0, displaySplitTex = 0, display_log_tex = 0;
 unsigned int width = 1024, height = 1024;
 
 
-float dot(MATRIX<MATRIX_TYPE> &one, MATRIX<MATRIX_TYPE> &two, int col)
-{
-	float sum = 0;
-	for (int i=0; i<one.row; i++){
-		sum += one.data[i] * two(col,i);//.data[i * two.col + col ];
-	}
-	return sum;
-}
 
 //column major order doesn't matter for sgesvd_
 //the matrix pumped out of cov is singular
@@ -319,7 +320,36 @@ void initGL( int argc, char **argv )
         exit(-1);
     }
 }
+void readConfig()
+{
+	std::ifstream file;
+	char filename[100];
+	sprintf(filename, "%s%s",CONFIG_PATH,"config.txt");
+	file.open(filename, std::ifstream::in);
+	std::string str;
+	if (!file.good()){
+		printf("file bad!\n");
+		exit(-1);
+	}
 
+	while (file.good()){
+		getline(file, str);
+		Tokenizer tok(str);
+		if (str.find("BETA") != std::string::npos){
+			BETA = atoi(tok(1).c_str());
+		}
+		else if (str.find("ALPHA") != std::string::npos){
+			ALPHA = atof(tok(1).c_str());
+		}
+		else if (str.find("ITERATIONS") != std::string::npos){
+			host_T = atoi(tok(1).c_str());
+		}
+		else if (str.find("DEBUG_PRINT") != std::string::npos){
+			DEBUG_PRINT = atoi(tok(1).c_str());
+			std::cout << tok(1) << std::endl;
+		}
+	}
+}
 //void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *labels, int offset, uint label_value)
 //{
 //	std::ifstream file;
@@ -351,120 +381,63 @@ void initGL( int argc, char **argv )
 //	printf("row: %d\n",row);
 //	file.close();
 //}
-void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *labels, uint offset, uint label_value)
+int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	char filename[100];
 	sprintf(filename, "%s%s",DATA_PATH,name.c_str() );
-	printf("%s\n", filename);
 	file.open(filename, std::ifstream::in);
 	std::string str;
 
 	int counter = 0;
 	int row = 0;
-	if (!file.good())
+	if (!file.good()){
 		printf("file bad!\n");
+		exit(-1);
+	}
+	while (getline(file,str))
+		counter++;
+	file.clear();
+	file.seekg(0);
+
+	x.row = counter;
+	x.col = VECTOR_SIZE;
+	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);
+	labels = (uint*)malloc(sizeof(uint) * x.row);
+
 	while (getline(file, str)){
 		//if (isdigit(str.c_str()[0])){
 		char *tok = strtok((char*)str.c_str(), " ");
-//		//16 rows by 20000 cols in the file
-//		float value1 = atof(tok);
-//
-//		tok = strtok(NULL, " ");
-//		float value2 = atof(tok);
 
 		x(row, 0) = atof(tok);
 		for (int i=1; i<VECTOR_SIZE; i++){
 			tok = strtok(NULL, " ");
-			x(row, i) = atof(tok);;
+			x(row, i) = atof(tok);
 		}
-		//cos(3.1415927 * value1 / 180.0f);
-//		x(row, 1) = value2;//sin(3.1415927 * value1 / 180.0f);
-//		x(row, 2) = cos(3.1415927 * value2 / 180.0f);
-//		x(row, 3) = sin(3.1415927 * value2 / 180.0f);
-
-//		if (value1 < 0 && value1 > -180){
-//			if (value1 < -25 && value1 > -90 && value2 > -75 && value2 < -25){
-//						labels[ row] = 4;
-//			}
-//			else if ( value2 > -100 && value2 < 50){
-//				labels[ row] = 0;
-//			}
-//			else if (value2 > 50 && value2 < 100){
-//				labels[ row] = 1;
-//			}
-//			else if (value2 > 50 && value2 < 180){
-//				counter++;
-//				labels[ row] = 2;
-//			}
-//			else if (value2 > -180 && value2 < -100){
-//				labels[ row] = 3;
-//			}
-//			else
-//				labels[row] = 8;
-//		}
-//		else if (value1 < 150 && value1 > 0 && value2 > -50 && value2 < 100){
-//			labels[ row] = 5;
-//		}
-//		else if (value1 < 180 && value1 > 50 && value2 > 100 && value2 < 180){
-//			labels[ row] = 6;
-//		}
-//		else if (value1 < 180 && value1 > 0 && value2 > -180 && value2 < 110){
-//			labels[ row] = 7;
-//		}
-//		else
-//			labels[ row] = 8;
 		tok = strtok(NULL, " ");
 		labels[row] = atoi(tok);
 		row++;
 	}
-	printf("row: %d %d\n",row, counter);
-	file.close();
 
-	printf("%d \n", counter);
+	if (DEBUG_PRINT)
+		printf("row: %d %d\n",row, counter);
+	file.close();
+	return row;
 }
+
 int main( int argc, char **argv )
 {
 	initGL(argc,argv);
 
-	MATRIX<float> pc1;
-	pc1.data = (float*)malloc(sizeof(float) * VECTOR_SIZE);
-	pc1.row = VECTOR_SIZE;
-	pc1.col = 1;
-
-	MATRIX<float> pc2;
-	pc2.data = (float*)malloc(sizeof(float) * VECTOR_SIZE);
-	pc2.row = VECTOR_SIZE;
-	pc2.col = 1;
-
+	readConfig();
 	ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x;
-	x.row = DATA_SIZE;
-	x.col =  VECTOR_SIZE;
-	x.data = (float*)malloc(sizeof(float) * x.row * x.col);
-
-	MATRIX<float> pd1;
-	pd1.row = DATA_SIZE;
-	pd1.col = 1;
-	pd1.data = (float*)malloc(sizeof(float) * pd1.row);
-
-	MATRIX<float> pd2;
-	pd2.row = DATA_SIZE;
-	pd2.col = 1;
-	pd2.data = (float*)malloc(sizeof(float) * pd2.row);
-
-	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm;
-	data_dm.row = DATA_SIZE;
-	data_dm.col =  VECTOR_SIZE;
-	data_dm.data = (float*)malloc(sizeof(float) * data_dm.row * data_dm.col);
-
-	uint *labels = (uint*)malloc(sizeof(uint) * x.row);
+	uint *labels = 0;
 
 	std::ifstream file;
 	char filename[100];
 	std::string str;
 	int row = 0;
 
-	genome_index = 0;
 //	getFile("anoGAm1-100k.fa", x, labels, 0, 0);
 //	getFile("cb3-100k.fa", x, labels, 2627, 1);
 //	getFile("ce2-100k.fa", x, labels, 2627 + 956, 2);
@@ -486,27 +459,35 @@ int main( int argc, char **argv )
 //			labels[i * 2000 + j] = i;
 //		}
 //	}
+	MATRIX<float> pc1(VECTOR_SIZE, 1);
+
+	MATRIX<float> pc2(VECTOR_SIZE, 1);
+
 
 	//x.normalize();
 	x.pca(pc1,pc2);
 
-	printf("pc1: ");
-	pc1.print();
-	printf("pc2: ");
-	pc2.print();
-
+	if (DEBUG_PRINT){
+		printf("pc1: ");
+		pc1.print();
+		printf("pc2: ");
+		pc2.print();
+	}
 	//mean0 == dm
 	//dm should be shape = (16,)
 	//dm is correct compared to python code...
 	//it needed a reverse index
 	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
 
+	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm(DATA_SIZE, VECTOR_SIZE);
+	MATRIX<float> pd1(DATA_SIZE, 1);
+	MATRIX<float> pd2(DATA_SIZE, 1);
 	for (int i=0; i<data_dm.row; i++){
 		for (int j=0; j<data_dm.col; j++){
 			data_dm(i,j) = x(i,j) - dm[j];
 		}
-		pd1.data[i] = dot(pc1, data_dm,i);
-		pd2.data[i] = dot(pc2, data_dm,i);
+		pd1.data[i] = pc1.dot(data_dm,i);
+		pd2.data[i] = pc2.dot(data_dm,i);
 	}
 
 /*****************************************************************************************
@@ -522,9 +503,10 @@ int main( int argc, char **argv )
 	bin1 = 2 * expansion * std1 / IMAGE_N;
 	bin2 = 2 * expansion * std2 / IMAGE_M;
 
-	printf("Std dev: %f %f\n", std1,std2);
-	printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_M, IMAGE_N);
-
+	if (DEBUG_PRINT){
+		printf("Std dev: %f %f\n", std1,std2);
+		printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_M, IMAGE_N);
+	}
 
 
 
@@ -539,10 +521,7 @@ int main( int argc, char **argv )
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	ORDERED_MATRIX<float, COLUMN_MAJOR> ww;
-	ww.data = (float*)malloc(sizeof(float) * IMAGE_M * IMAGE_N * VECTOR_SIZE);
-	ww.row = VECTOR_SIZE;
-	ww.col = IMAGE_M * IMAGE_N;
+	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(VECTOR_SIZE, IMAGE_MxN);
 
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_N; i++){
@@ -559,19 +538,16 @@ int main( int argc, char **argv )
    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 
-	//chunk
-	//K = 20000
-	//M = 16
-	//N = 896 (32 * 28)
 	unsigned int timer;
     cutCreateTimer(&timer);
     double time;
     cutResetTimer(timer);
     cutStartTimer(timer);
-	setupCuda(ww,x, labels,(uint*)d_regular_output, d_split_output, d_log_output);
+	setupCuda(ww,x,labels,(uint*)d_regular_output, d_split_output, d_log_output);
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
-	printf("Setup time %f\n\n", time);
+	if (DEBUG_PRINT)
+		printf("Setup time %f\n\n", time);
 	runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
@@ -579,7 +555,6 @@ int main( int argc, char **argv )
 	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 
 	glutMainLoop();
-
 
 	cleanup();
 	delete dm, b1,b2,labels;

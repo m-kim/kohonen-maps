@@ -60,6 +60,18 @@ public:
 		return sqrt(sum / (row - 1));
 	}
 
+	void printSize(){
+		std::cout << "[" << row << "," << col << "]" << std::endl;
+	}
+	float dot(MATRIX<T> &two, int col)
+	{
+		float sum = 0;
+		for (int i=0; i<row; i++){
+			sum += data[i] * two(col,i);//.data[i * two.col + col ];
+		}
+		return sum;
+	}
+
 };
 
 
@@ -114,13 +126,7 @@ public:
 							covariance[i * _col + j] += ((*this)(k,i) - mean_val[i]) * ((*this)(k,j) - mean_val[j]);
 					}
 					covariance[i * _col + j] /= (_row - 1);
-#if DEBUG_PRINT
-					printf("%f ", covariance[i * _col + j]);
-#endif
 			}
-#if DEBUG_PRINT
-			printf("\n");
-#endif
 		}
 		delete mean_val;
 		return covariance;
@@ -146,7 +152,6 @@ public:
 
 	void pca(MATRIX<TYPE> &pca1, MATRIX<TYPE> &pca2)
 	{
-		printf("Entering PCA...\n");
 		//16 x 20000 means a 16x16 covariance matrix
 		float *cov_mat = cov();
 
@@ -199,20 +204,9 @@ public:
 			pca1.data[i] = vv[i * _col];
 			pca2.data[i] = vv[i * _col + 1];
 		}
-		printf("PCA finished...\n");
 	//	memcpy(pca1, &vv[0], sizeof(float)* mat_m);
 	//	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
 
-	#if DEBUG_PRINT
-		for (int i=0; i<x.col; i++){
-			printf("\t%f ", s[i]);
-			for (int j=0; j<x.col; j++)
-				printf("%f ", vv[IDX2C(i,j, x.col)]);
-			printf("\n");
-		}
-		printf("\n");
-		printf("%d\n",info);
-	#endif
 		delete cov_mat;
 	}
 };

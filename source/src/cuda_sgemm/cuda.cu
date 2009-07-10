@@ -5,6 +5,12 @@
 #define EPSILON 0.000001
 
 extern "C" int genome_index;
+extern "C" int DATA_SIZE;
+extern "C" int VECTOR_SIZE;
+extern "C" int BETA;
+extern "C" float ALPHA;
+extern "C" int host_T;
+extern "C" int DEBUG_PRINT;
 
 MATRIX<MATRIX_TYPE> device_ww2, device_save, device_sum, device_scratch;
 MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
@@ -14,15 +20,17 @@ float host_alpha[2];
 int host_r = -1, host_beta[2];
 
 __constant__ uint constant_color[COLOR_SIZE];
+__constant__ uint device_vector_size[1];
+__constant__ uint device_data_size[1];
 
 
 __global__ void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-	for (int j=0; j<VECTOR_SIZE; j++){
+	for (int j=0; j<device_vector_size[0]; j++){
 		//this shouldn't be backwards...*sigh*
-		ww2[i] += pow(ww[i * VECTOR_SIZE + j ], 2);
+		ww2[i] += pow(ww[i * device_vector_size[0] + j ], 2);
 	}
 }
 
@@ -36,8 +44,8 @@ __global__ void prepSum(float *a, float *b, uint *ww_count, uint *count, int _be
 		int imax = min(row + _beta + 1, IMAGE_N);
 
 		for (int x=imin; x<imax; x++){
-			for (int k=0; k<VECTOR_SIZE; k++){
-				b[k + VECTOR_SIZE * ( row + IMAGE_M * col )] += a[k + VECTOR_SIZE * (x + IMAGE_M * col)];
+			for (int k=0; k<device_vector_size[0]; k++){
+				b[k + device_vector_size[0] * ( row + IMAGE_M * col )] += a[k + device_vector_size[0] * (x + IMAGE_M * col)];
 			}
 			count[index] += ww_count[x + IMAGE_M * col];
 		}
@@ -54,10 +62,9 @@ __global__ void prepSum2(float *ww, float *a, float *b, uint *ww_count, uint *co
 	if (col < IMAGE_M){
 		int imin = max(col - _beta,0);
 		int imax = min(col + _beta + 1,IMAGE_N);
-		float sum = 0;
 		for (int x=imin; x<imax; x++){
-			for (int k=0; k<VECTOR_SIZE; k++){
-				a[k + VECTOR_SIZE * ( col + IMAGE_M * row) ] += b[k + VECTOR_SIZE * ( col + IMAGE_M * x) ];
+			for (int k=0; k<device_vector_size[0]; k++){
+				a[k + device_vector_size[0] * ( col + IMAGE_M * row) ] += b[k + device_vector_size[0] * ( col + IMAGE_M * x) ];
 			}
 			ww_count[col + IMAGE_M * row] += count[col + IMAGE_M * x];
 		}
@@ -68,18 +75,18 @@ __global__ void updateWeights(float *ww, float *avg_weight, float alpha)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
-	int index =  VECTOR_SIZE * (row + IMAGE_M * col);
-	for (int i=0; i<VECTOR_SIZE; i++){
+	int index =  device_vector_size[0] * (row + IMAGE_M * col);
+	for (int i=0; i<device_vector_size[0]; i++){
 		ww[i + index] = ww[i + index] + abs(alpha * (avg_weight[i + index] - ww[i + index]));
 	}
 
 //	//we're using avg_weight as a cache
 //	avg_weight[index] = 0.0;
-//	for (int i=0; i<VECTOR_SIZE; i++){
+//	for (int i=0; i<device_vector_size[0]; i++){
 //		avg_weight[index] += ww[i + index];
 //	}
 //
-//	for (int i=0; i<VECTOR_SIZE; i++){
+//	for (int i=0; i<device_vector_size[0]; i++){
 //		//instead of a check for zero, add some epsilon
 //		if (abs(avg_weight[index]) < .00001)
 //			ww[i + index] = 0;
@@ -93,13 +100,13 @@ __global__ void normalizeSum(float *a, unsigned int* ww_count)
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int k=0; k<VECTOR_SIZE; k++){
+	for (int k=0; k<device_vector_size[0]; k++){
 		//cc_sum(k, i + IMAGE_M * j) = argh(k, i + IMAGE_M * j)/count(j,i);
 
 		if (ww_count[row + IMAGE_M * col] == 0)
-			a[k + VECTOR_SIZE * ( row + IMAGE_M * col)] = 0;
+			a[k + device_vector_size[0] * ( row + IMAGE_M * col)] = 0;
 		else
-			a[k + VECTOR_SIZE * ( row + IMAGE_M * col)] = a[k + VECTOR_SIZE * (row + IMAGE_M * col)]/(float)ww_count[row + IMAGE_M * col];
+			a[k + device_vector_size[0] * ( row + IMAGE_M * col)] = a[k + device_vector_size[0] * (row + IMAGE_M * col)]/(float)ww_count[row + IMAGE_M * col];
 	}
 }
 
@@ -144,8 +151,8 @@ __global__ void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 		indices[index] = argmax[0];
 	}
 	//take the vector from data and save it to ww_sum
-	if (threadIdx.x < VECTOR_SIZE)
-		ww_sum[ argmax[0] *VECTOR_SIZE + threadIdx.x] += data[index * VECTOR_SIZE + threadIdx.x];
+	if (threadIdx.x < device_vector_size[0])
+		ww_sum[ argmax[0] *device_vector_size[0] + threadIdx.x] += data[index * device_vector_size[0] + threadIdx.x];
 }
 
 __global__ void buildImage(uint *im, uint *labels, uint *indices)
@@ -155,19 +162,10 @@ __global__ void buildImage(uint *im, uint *labels, uint *indices)
 	uint index = row + IMAGE_M * col;
 
 	im[index] = LABEL_COUNT + 2;
-	for (int i=0; i<DATA_SIZE; i++){
+	for (int i=0; i<device_data_size[0]; i++){
 		if (indices[i] == index)
 			im[index] = labels[i];
 	}
-
-//	__shared__ int nn[IMAGE_N];
-//	__shared__ int mm[IMAGE_N];
-//	nn[threadIdx.x] = indices[i] / IMAGE_M;
-//	mm[threadIdx.x] = indices[i] - IMAGE_M * nn[threadIdx.x];
-//	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = 0;
-//	im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = LABEL_COUNT;
-//	if (labels[i] < LABEL_COUNT)
-//		im[ nn[threadIdx.x] + IMAGE_M * mm[threadIdx.x]] = labels[i];
 }
 
 __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_index)
@@ -181,7 +179,7 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 	for (int i=0; i<GENOMIC_DATA_COUNT; i++)
 		genome[i] = 0;
 
-	for (int i=0; i<DATA_SIZE; i++){
+	for (int i=0; i<device_data_size[0]; i++){
 		if (indices[i] == index){
 			genome[ labels[i] ]++;
 		}
@@ -270,6 +268,7 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 //		color[i] = 0;
 //	}
 
+
 	memset(color, 0, COLOR_SIZE *4);
 	//dark green
 	color[0] = 29;
@@ -333,15 +332,18 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));
 
+	cutilSafeCall(cudaMemcpyToSymbol(device_vector_size, &VECTOR_SIZE, sizeof(unsigned int), 0));
+	cutilSafeCall(cudaMemcpyToSymbol(device_data_size, &DATA_SIZE, sizeof(unsigned int), 0));
+
 	host_beta[0] = BETA;
 	host_beta[1] = BETA;
 	host_alpha[0] = ALPHA;
 	host_alpha[1] = ALPHA;
 
 
-	cudaMemset(device_regular_pbo, 0, sizeof(unsigned int) * 512 * 512);
-	cudaMemset(device_split_pbo, 0, sizeof(unsigned int) * 512 * 512);
-	cudaMemset(device_log_pbo, 0, sizeof(unsigned char) * 512 * 512);
+	cutilSafeCall(cudaMemset(device_regular_pbo, 0, sizeof(unsigned int) * 512 * 512));
+	cutilSafeCall(cudaMemset(device_split_pbo, 0, sizeof(unsigned int) * 512 * 512));
+	cutilSafeCall(cudaMemset(device_log_pbo, 0, sizeof(unsigned char) * 512 * 512));
 
 	device_labels.row = data.row;
 	device_labels.col = 1;
@@ -372,24 +374,27 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 
     device_ww.row = ww.row;
     device_ww.col = ww.col;
-    printf("setup matrix ww %d %d\n", ww.row, ww.col);
+    if (DEBUG_PRINT)
+    	printf("setup matrix ww %d %d\n", ww.row, ww.col);
     cutilSafeCall(cudaMalloc((void**)&device_ww.data, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_ww.data, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
 
 	device_ww2.row = IMAGE_N;
 	device_ww2.col = IMAGE_M;
-    printf("setup matrix ww2 %d %d\n", device_ww2.row, device_ww2.col);
+	if (DEBUG_PRINT)
+    	printf("setup matrix ww2 %d %d\n", device_ww2.row, device_ww2.col);
     cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
 	cutilSafeCall(cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col));
 
     device_sum.row = ww.row;
     device_sum.col = ww.col;
-    printf("setup matrix sum %d %d\n", device_sum.row, device_sum.col);
+    if (DEBUG_PRINT)
+    	printf("setup matrix sum %d %d\n", device_sum.row, device_sum.col);
     cutilSafeCall(cudaMalloc((void**)&device_sum.data, sizeof(float) * device_sum.row * device_sum.col));
     cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col ));
 
-
-    printf("setup matrix scractch %d %d\n", IMAGE_MxN, VECTOR_SIZE);
+	if(DEBUG_PRINT)
+    	printf("setup matrix scratch %d %d\n", IMAGE_MxN, VECTOR_SIZE);
     cutilSafeCall(cudaMalloc((void**)&device_scratch.data, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
     cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
 
@@ -399,7 +404,8 @@ extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERE
 
     device_data.row = data.row;
     device_data.col = data.col;
-    printf("setup matrix data %d %d\n", device_data.row, device_data.col);
+    if (DEBUG_PRINT)
+    	printf("setup matrix data %d %d\n", device_data.row, device_data.col);
     cutilSafeCall(cudaMalloc((void**)&device_data.data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
 
@@ -421,24 +427,12 @@ extern "C" void updateWeights()
 	cudaThreadSynchronize();
 	updateWeights<<<grid,block>>>(device_ww.data, device_sum.data, host_alpha[0]);
 	cudaThreadSynchronize();
-#if DEBUG_PRINT
-	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(device_ww.row, device_ww.col);
-	cudaMemcpy(ww.data, device_ww.data, ww.row * ww.col * sizeof(float), cudaMemcpyDeviceToHost);
-	for (int i=0; i<4; i++){
-		for (int j=0; j<32; j++){
-			for(int k=0; k<32;k++){
-				printf("%f ", ww(i, j + IMAGE_M * k));
-			}
-			printf("\n");
-		}
-		printf("\n");
-	}
-#endif
 }
 
 extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
 {
-	//printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
+	if (DEBUG_PRINT)
+		printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
 
 	unsigned int timer;
     cutCreateTimer(&timer);
@@ -463,7 +457,7 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<DATA_SIZE; i++){
-    	if ( !(i % 10000) )
+    	if ( !(i % 10000) && DEBUG_PRINT)
     		printf("%d\n",i);
 	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
@@ -492,7 +486,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
-    printf("Run time %f\n\n", time);
+    if(DEBUG_PRINT)
+    	printf("Run time %f\n\n", time);
     cutResetTimer(timer);
 
     cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 0, sizeof(int) * IMAGE_MxN);
@@ -503,14 +498,6 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
     											device_labels.data,device_indices.data);
     cudaThreadSynchronize();
 
-//    MATRIX<unsigned int> tmp(9216,1);
-//    cutilSafeCall(cudaMemcpy(tmp.data, device_ret.data,sizeof(int) * 9216, cudaMemcpyDeviceToHost));
-//    for (int i=0; i<32; i++){
-//    	for (int j=0; j<32; j++){
-//    		printf("%d ", tmp.data[8192 + i + IMAGE_M * j]);
-//    	}
-//    	printf("\n");
-//    }
 
     expandConstantImage<<<grid,block>>>(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 
@@ -519,20 +506,8 @@ extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_sp
 //
 //	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
 //	generateSplitImage(genome_index, device_split_pbo);
-
-    //printf("Total Time: %f\n\n", total_time);
-#if DEBUG_PRINT
-    unsigned char count[262144];
-    cutilSafeCall(cudaMemcpy(count, device_log_pbo, sizeof(unsigned char) * 262144, cudaMemcpyDeviceToHost));
-	int counter = 0;
-	for (int i=0; i<512; i++){
-		for (int j=0; j<512; j++){
-			printf("%d ", count[i * 512 + j]);
-		}
-		printf("\n");
-	}
-
-#endif
+	if (DEBUG_PRINT)
+    	printf("Total Time: %f\n\n", total_time);
 
    	return EXIT_SUCCESS;
 }
