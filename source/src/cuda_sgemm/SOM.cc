@@ -22,6 +22,8 @@ SOM::SOM()
 	host_T = 10;
 	genome_index = 0;
 	DEBUG_PRINT = 0;
+	RUN_CYCLE = 1;
+	RUN_DISPLAY = 1;
 
 }
 void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
@@ -213,4 +215,23 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     	printf("Total Time: %f\n\n", total_time);
 
    	return EXIT_SUCCESS;
+}
+
+int SOM::make_data(int n,int S, int F,float weight,
+		MATRIX<MATRIX_TYPE> &pc1,
+		MATRIX<MATRIX_TYPE> &pc2,
+		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
+{
+	float center_vec[F];
+	for (int i=0; i<S; i++){
+		for (int cv_f = 0; cv_f < F; cv_f++){
+			center_vec[cv_f] = (float)rand() / (float)RAND_MAX - 0.5;
+		}
+		for (int j=0; j<n; j++){
+			for (int cv_f = 0; cv_f < F; cv_f++){
+				x((i * n + j), cv_f) = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
+			}
+		}
+	}
+
 }

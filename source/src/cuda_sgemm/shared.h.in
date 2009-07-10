@@ -1,7 +1,5 @@
 #include "Matrix.h"
 
-#define RUN_CYCLE 0
-
 #define IMAGE_M 32
 #define IMAGE_N 32
 #define IMAGE_MxN IMAGE_M * IMAGE_N

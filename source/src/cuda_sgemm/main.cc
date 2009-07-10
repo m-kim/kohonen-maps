@@ -20,8 +20,6 @@
 SOM som;
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
-int DATA_SIZE = 3081;  //(2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609 + 15943) // 112827//1128274 //(26306 + 9581 + 10026 + 12788)
-
 int counter = 0;
 int split_som_window = 0, som_window = 0;
 float expansion = 2;
@@ -37,44 +35,17 @@ GLuint displayRegTex = 0, displaySplitTex = 0, display_log_tex = 0;
 unsigned int width = 1024, height = 1024;
 
 
-
-//column major order doesn't matter for sgesvd_
-//the matrix pumped out of cov is singular
-//however, the matrix returned will be in column major order
-//so, that needs to be taken into account...
-
-int make_data(int n,int S, int F,float weight,
-		MATRIX<MATRIX_TYPE> &pc1,
-		MATRIX<MATRIX_TYPE> &pc2,
-		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
-{
-	float center_vec[F];
-	for (int i=0; i<S; i++){
-		for (int cv_f = 0; cv_f < F; cv_f++){
-			center_vec[cv_f] = (float)rand() / (float)RAND_MAX - 0.5;
-		}
-		for (int j=0; j<n; j++){
-			for (int cv_f = 0; cv_f < F; cv_f++){
-				x((i * n + j), cv_f) = weight * center_vec[cv_f] + (float)rand()/ (float)RAND_MAX - 0.5;
-			}
-		}
-	}
-
-}
-
 // display results using OpenGL (called by GLUT)
 void display()
 {
 	glutSetWindow(som_window);
 
-#if RUN_CYCLE
-	if (counter < host_T){
+	if (som.RUN_CYCLE && counter < som.host_T){
 		counter++;
-		updateWeights();
-		runCuda((uint*)d_regular_output, d_split_output, d_log_output);
-		updateConvergence();
+		som.updateWeights();
+		som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+		som.updateConvergence();
 	}
-#endif
 
 	// display results
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -339,6 +310,12 @@ void readConfig()
 		else if (str.find("DEBUG_PRINT") != std::string::npos){
 			som.DEBUG_PRINT = atoi(tok(1).c_str());
 		}
+		else if (str.find("RUN_CYCLE") != std::string::npos){
+			som.RUN_CYCLE = atoi(tok(1).c_str());
+		}
+		else if (str.find("RUN_DISPLAY") != std::string::npos){
+			som.RUN_DISPLAY = atoi(tok(1).c_str());
+		}
 	}
 }
 //void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *labels, int offset, uint label_value)
@@ -419,9 +396,13 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&
 
 int main( int argc, char **argv )
 {
-	initGL(argc,argv);
+
 
 	readConfig();
+	if (som.RUN_DISPLAY)
+		initGL(argc,argv);
+
+
 	ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x;
 	uint *labels = 0;
 
@@ -472,8 +453,8 @@ int main( int argc, char **argv )
 	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
 
 	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm(som.DATA_SIZE, som.VECTOR_SIZE);
-	MATRIX<float> pd1(DATA_SIZE, 1);
-	MATRIX<float> pd2(DATA_SIZE, 1);
+	MATRIX<float> pd1(som.DATA_SIZE, 1);
+	MATRIX<float> pd2(som.DATA_SIZE, 1);
 
 	for (int i=0; i<data_dm.row; i++){
 		for (int j=0; j<data_dm.col; j++){
@@ -482,8 +463,6 @@ int main( int argc, char **argv )
 		pd1.data[i] = pc1.dot(data_dm,i);
 		pd2.data[i] = pc2.dot(data_dm,i);
 	}
-
-	pd1.print();
 
 /*****************************************************************************************
  * scale map
@@ -502,8 +481,6 @@ int main( int argc, char **argv )
 		printf("Std dev: %f %f\n", std1,std2);
 		printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_M, IMAGE_N);
 	}
-
-
 
 /*************************************************************************************
  * init_ww and
@@ -527,11 +504,16 @@ int main( int argc, char **argv )
 		}
 	}
 
-    // map PBO to get CUDA device pointer
-	initGLBuffers();
-   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
-   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-   	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
+	if(som.RUN_DISPLAY){
+		// map PBO to get CUDA device pointer
+		initGLBuffers();
+		cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+		cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+		cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
+	}
+	else{
+		cudaMalloc((void**)d_regular_output, sizeof(int) * 512 * 512);
+	}
 
 	unsigned int timer;
     cutCreateTimer(&timer);
@@ -545,11 +527,22 @@ int main( int argc, char **argv )
 		printf("Setup time %f\n\n", time);
 	som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 
-	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
-	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
-	cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
+	if (som.RUN_DISPLAY){
+		cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
+		cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
+		cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
+	}
 
-	glutMainLoop();
+	if (som.RUN_DISPLAY)
+		glutMainLoop();
+	else{
+		while( counter < som.host_T){
+			counter++;
+			som.updateWeights();
+			som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+			som.updateConvergence();
+		}
+	}
 
 	delete dm, b1,b2,labels;
 };
