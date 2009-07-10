@@ -14,6 +14,8 @@
 #include <cutil_inline.h>
 #include <cutil_gl_inline.h>
 
+#include <sstream>
+
 #include "Tokenizer.h"
 #include "SOM.h"
 
@@ -315,6 +317,12 @@ void readConfig()
 		else if (str.find("RUN_DISPLAY") != std::string::npos){
 			som.RUN_DISPLAY = atoi(tok(1).c_str());
 		}
+		else if (str.find("DATA_PATH") != std::string::npos){
+			som.DATA_PATH = tok(1);
+		}
+		else if (str.find("DATA_FILE") != std::string::npos){
+			som.DATA_FILE = tok(1);
+		}
 	}
 }
 //void getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *labels, int offset, uint label_value)
@@ -351,9 +359,9 @@ void readConfig()
 int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&labels, uint offset, uint label_value)
 {
 	std::ifstream file;
-	char filename[100];
-	sprintf(filename, "%s%s",DATA_PATH,name.c_str() );
-	file.open(filename, std::ifstream::in);
+	std::stringstream filename;
+	filename << som.DATA_PATH << name;
+	file.open(filename.str().c_str(), std::ifstream::in);
 	std::string str;
 
 	int line_count = 0;

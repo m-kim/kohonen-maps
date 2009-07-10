@@ -13,11 +13,8 @@
 
 typedef float MATRIX_TYPE;
 
-//yes I know this isn't strict C, but I'm not that fussy...
-#include <string>
-
 //#define SRC_PATH "${PROJECT_SOURCE_DIR}"
-#define DATA_PATH "/data/"
+
 #define CONFIG_PATH "${CMAKE_SOURCE_DIR}/../"
 #define LABEL_COUNT 8
 #define GENOMIC_DATA_COUNT 8

@@ -28,6 +28,9 @@ SOM::SOM()
 	RUN_CYCLE = 1;
 	RUN_DISPLAY = 1;
 
+	DATA_PATH = "/data/";
+	DATA_FILE = "data";
+
 	counter = 0;
 
 }

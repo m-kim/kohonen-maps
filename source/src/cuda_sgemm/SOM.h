@@ -2,6 +2,8 @@
 #define SOM_H
 #include "Matrix.h"
 #include "shared.h"
+#include <string>
+
 class SOM
 {
 public:
@@ -42,7 +44,8 @@ public:
 	float host_alpha[2];
 	int host_r, host_beta[2];
 	int RUN_DISPLAY;
-
+	std::string DATA_PATH;
+	std::string DATA_FILE;
 	int counter;
 };
 
