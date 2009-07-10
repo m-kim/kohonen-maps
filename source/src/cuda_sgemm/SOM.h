@@ -43,6 +43,7 @@ public:
 	int host_r, host_beta[2];
 	int RUN_DISPLAY;
 
+	int counter;
 };
 
 #endif

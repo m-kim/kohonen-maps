@@ -20,12 +20,11 @@
 SOM som;
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
-int counter = 0;
 int split_som_window = 0, som_window = 0;
 float expansion = 2;
 float bin1, bin2;
 uint *d_split_output;
-uchar4 **d_regular_output;
+uchar4 *d_regular_output;
 unsigned char *d_log_output;
 
 GLuint split_pbo = 0, log_pbo = 0;          // OpenGL pixel buffer object
@@ -40,8 +39,8 @@ void display()
 {
 	glutSetWindow(som_window);
 
-	if (som.RUN_CYCLE && counter < som.host_T){
-		counter++;
+	if (som.RUN_CYCLE && som.counter < som.host_T){
+		som.counter++;
 		som.updateWeights();
 		som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 		som.updateConvergence();
@@ -357,23 +356,23 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&
 	file.open(filename, std::ifstream::in);
 	std::string str;
 
-	int counter = 0;
+	int line_count = 0;
 	int row = 0;
 	if (!file.good()){
 		printf("file bad!\n");
 		exit(-1);
 	}
 	while (getline(file,str))
-		counter++;
+		line_count++;
 	file.clear();
 	file.seekg(0);
 
-	x.row = counter;
+	x.row = line_count;
 	x.col = som.VECTOR_SIZE;
 	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);
 	labels = (uint*)malloc(sizeof(uint) * x.row);
 
-	som.DATA_SIZE = counter;
+	som.DATA_SIZE = line_count;
 	while (getline(file, str)){
 		//if (isdigit(str.c_str()[0])){
 		char *tok = strtok((char*)str.c_str(), " ");
@@ -389,7 +388,7 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&
 	}
 
 	if (som.DEBUG_PRINT)
-		printf("row: %d %d\n",row, counter);
+		printf("row: %d %d\n",row, line_count);
 	file.close();
 	return row;
 }
@@ -512,7 +511,9 @@ int main( int argc, char **argv )
 		cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 	}
 	else{
-		cudaMalloc((void**)d_regular_output, sizeof(int) * 512 * 512);
+		cutilSafeCall(cudaMalloc((void**)&d_regular_output, sizeof(unsigned int) * 512 * 512));
+		cutilSafeCall(cudaMalloc((void**)&d_split_output, sizeof(unsigned int) * 512 * 512));
+		cutilSafeCall(cudaMalloc((void**)&d_log_output, sizeof(unsigned int) * 512 * 512));
 	}
 
 	unsigned int timer;
@@ -525,6 +526,7 @@ int main( int argc, char **argv )
 	time = cutGetTimerValue(timer);
 	if (som.DEBUG_PRINT)
 		printf("Setup time %f\n\n", time);
+
 	som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 
 	if (som.RUN_DISPLAY){
@@ -536,12 +538,15 @@ int main( int argc, char **argv )
 	if (som.RUN_DISPLAY)
 		glutMainLoop();
 	else{
-		while( counter < som.host_T){
-			counter++;
+		while( som.counter < som.host_T){
+			som.counter++;
 			som.updateWeights();
 			som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 			som.updateConvergence();
 		}
+		cutilSafeCall(cudaFree(d_regular_output));
+		cutilSafeCall(cudaFree(d_split_output));
+		cutilSafeCall(cudaFree(d_log_output));
 	}
 
 	delete dm, b1,b2,labels;

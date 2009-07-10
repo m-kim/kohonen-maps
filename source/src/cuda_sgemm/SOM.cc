@@ -1,5 +1,8 @@
 #include "SOM.h"
 #include  <cublas.h>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 extern "C" void expandSplitImage(uint *im, const uint *ret);
 extern "C" void prepSum(float *a, float *b, uint *ww_count, uint *count, int _beta);
@@ -25,6 +28,8 @@ SOM::SOM()
 	RUN_CYCLE = 1;
 	RUN_DISPLAY = 1;
 
+	counter = 0;
+
 }
 void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
 {
@@ -43,7 +48,7 @@ void SOM::updateConvergence()
 void SOM::updateWeights()
 {
     //update_weights
-    cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE);
+    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
 
     prepSum(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	prepSum2(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
@@ -66,7 +71,7 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,
 
 	setup(VECTOR_SIZE,DATA_SIZE);
 
-	safeMemset(device_regular_pbo, 0, sizeof(unsigned int) * 512 * 512);
+
 	cutilSafeCall(cudaMemset(device_regular_pbo, 0, sizeof(unsigned int) * 512 * 512));
 	cutilSafeCall(cudaMemset(device_split_pbo, 0, sizeof(unsigned int) * 512 * 512));
 	cutilSafeCall(cudaMemset(device_log_pbo, 0, sizeof(unsigned char) * 512 * 512));
@@ -204,13 +209,40 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     											device_labels.data,device_indices.data);
 
 
-    expandConstantImage(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+    if (RUN_DISPLAY){
+        expandConstantImage(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+        //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+        //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
+        //
+        //	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+        //	generateSplitImage(genome_index, device_split_pbo);
+    }
+    else{
+    	std::ofstream file;
+    	std::stringstream tmp;
+    	tmp << CONFIG_PATH << "indices" << counter;
+		std::string filename(tmp.str());
 
-//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
-//    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
-//
-//	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
-//	generateSplitImage(genome_index, device_split_pbo);
+		MATRIX<unsigned int> save_labels(device_labels.row,device_labels.col);
+		cutilSafeCall(cudaMemcpy(save_labels.data, device_labels.data, sizeof(unsigned int) * save_labels.row * save_labels.col, cudaMemcpyDeviceToHost));
+		MATRIX<unsigned int> indices(device_indices.row, device_indices.col);
+		cutilSafeCall(cudaMemcpy(indices.data, device_indices.data, sizeof(unsigned int) * indices.row * indices.col, cudaMemcpyDeviceToHost));
+
+    	file.open(filename.c_str());
+
+    	for (int i=0; i<DATA_SIZE; i++){
+    		file << indices.data[i] << " " << save_labels.data[i] << std::endl;
+    	}
+
+		//wtf?
+		delete save_labels.data;
+		save_labels.data= 0;
+		delete indices.data;
+		indices.data= 0;
+
+    	file.close();
+    }
+
 	if (DEBUG_PRINT)
     	printf("Total Time: %f\n\n", total_time);
 
