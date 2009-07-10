@@ -15,23 +15,12 @@
 #include <cutil_gl_inline.h>
 
 #include "Tokenizer.h"
+#include "SOM.h"
 
+SOM som;
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
-extern "C" void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,  ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &data, uint *labels, unsigned int *device_regular_pbo, uint *device_split_pbo, unsigned char *device_log_pbo);
-extern "C" int runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo);
-extern "C" void updateConvergence();
-extern "C" void cleanup();
-extern "C" void updateWeights();
 
 int DATA_SIZE = 3081;  //(2627 + 956 + 999 + 1052 + 1339 + 8236 + 3510 + 3108 + 609 + 15943) // 112827//1128274 //(26306 + 9581 + 10026 + 12788)
-int VECTOR_SIZE = 2;
-int BETA = 4;
-float ALPHA = .6;
-int host_T = 10;
-int genome_index = 0;
-int DEBUG_PRINT = 0;
-
-extern "C" void generateSplitImage(int g_index, unsigned int * device_split_pbo);
 
 int counter = 0;
 int split_som_window = 0, som_window = 0;
@@ -54,7 +43,10 @@ unsigned int width = 1024, height = 1024;
 //however, the matrix returned will be in column major order
 //so, that needs to be taken into account...
 
-int make_data(int n,int S, int F,float weight, MATRIX<MATRIX_TYPE> &pc1, MATRIX<MATRIX_TYPE> &pc2, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
+int make_data(int n,int S, int F,float weight,
+		MATRIX<MATRIX_TYPE> &pc1,
+		MATRIX<MATRIX_TYPE> &pc2,
+		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
 {
 	float center_vec[F];
 	for (int i=0; i<S; i++){
@@ -153,9 +145,9 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 
-        updateWeights();
-        runCuda((uint*)d_regular_output, d_split_output, d_log_output);
-        updateConvergence();
+        som.updateWeights();
+        som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+        som.updateConvergence();
        	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
        	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
        	cutilSafeCall(cudaGLUnmapBufferObject(log_pbo) );
@@ -163,12 +155,12 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
     	break;
     case 'r':
     case 'R':
-    	genome_index = ++genome_index % GENOMIC_DATA_COUNT;
+    	som.genome_index = ++som.genome_index % GENOMIC_DATA_COUNT;
     	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-    	generateSplitImage(genome_index, d_split_output);
+    	som.generateSplitImage(som.genome_index, d_split_output);
        	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
 
-       	printf("Genome data %d\n", genome_index + 1);
+       	printf("Genome data %d\n", som.genome_index + 1);
     	break;
 	case 27:
 		exit(0);
@@ -336,17 +328,16 @@ void readConfig()
 		getline(file, str);
 		Tokenizer tok(str);
 		if (str.find("BETA") != std::string::npos){
-			BETA = atoi(tok(1).c_str());
+			som.BETA = atoi(tok(1).c_str());
 		}
 		else if (str.find("ALPHA") != std::string::npos){
-			ALPHA = atof(tok(1).c_str());
+			som.ALPHA = atof(tok(1).c_str());
 		}
 		else if (str.find("ITERATIONS") != std::string::npos){
-			host_T = atoi(tok(1).c_str());
+			som.host_T = atoi(tok(1).c_str());
 		}
 		else if (str.find("DEBUG_PRINT") != std::string::npos){
-			DEBUG_PRINT = atoi(tok(1).c_str());
-			std::cout << tok(1) << std::endl;
+			som.DEBUG_PRINT = atoi(tok(1).c_str());
 		}
 	}
 }
@@ -401,16 +392,17 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&
 	file.seekg(0);
 
 	x.row = counter;
-	x.col = VECTOR_SIZE;
+	x.col = som.VECTOR_SIZE;
 	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);
 	labels = (uint*)malloc(sizeof(uint) * x.row);
 
+	som.DATA_SIZE = counter;
 	while (getline(file, str)){
 		//if (isdigit(str.c_str()[0])){
 		char *tok = strtok((char*)str.c_str(), " ");
 
 		x(row, 0) = atof(tok);
-		for (int i=1; i<VECTOR_SIZE; i++){
+		for (int i=1; i<som.VECTOR_SIZE; i++){
 			tok = strtok(NULL, " ");
 			x(row, i) = atof(tok);
 		}
@@ -419,7 +411,7 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&
 		row++;
 	}
 
-	if (DEBUG_PRINT)
+	if (som.DEBUG_PRINT)
 		printf("row: %d %d\n",row, counter);
 	file.close();
 	return row;
@@ -459,15 +451,15 @@ int main( int argc, char **argv )
 //			labels[i * 2000 + j] = i;
 //		}
 //	}
-	MATRIX<float> pc1(VECTOR_SIZE, 1);
+	MATRIX<float> pc1(som.VECTOR_SIZE, 1);
 
-	MATRIX<float> pc2(VECTOR_SIZE, 1);
+	MATRIX<float> pc2(som.VECTOR_SIZE, 1);
 
 
 	//x.normalize();
 	x.pca(pc1,pc2);
 
-	if (DEBUG_PRINT){
+	if (som.DEBUG_PRINT){
 		printf("pc1: ");
 		pc1.print();
 		printf("pc2: ");
@@ -479,9 +471,10 @@ int main( int argc, char **argv )
 	//it needed a reverse index
 	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
 
-	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm(DATA_SIZE, VECTOR_SIZE);
+	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm(som.DATA_SIZE, som.VECTOR_SIZE);
 	MATRIX<float> pd1(DATA_SIZE, 1);
 	MATRIX<float> pd2(DATA_SIZE, 1);
+
 	for (int i=0; i<data_dm.row; i++){
 		for (int j=0; j<data_dm.col; j++){
 			data_dm(i,j) = x(i,j) - dm[j];
@@ -489,6 +482,8 @@ int main( int argc, char **argv )
 		pd1.data[i] = pc1.dot(data_dm,i);
 		pd2.data[i] = pc2.dot(data_dm,i);
 	}
+
+	pd1.print();
 
 /*****************************************************************************************
  * scale map
@@ -503,7 +498,7 @@ int main( int argc, char **argv )
 	bin1 = 2 * expansion * std1 / IMAGE_N;
 	bin2 = 2 * expansion * std2 / IMAGE_M;
 
-	if (DEBUG_PRINT){
+	if (som.DEBUG_PRINT){
 		printf("Std dev: %f %f\n", std1,std2);
 		printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_M, IMAGE_N);
 	}
@@ -514,19 +509,19 @@ int main( int argc, char **argv )
  * init_ww and
  * musical_chairs
  */
-	float *b1 = (float*)malloc(sizeof(float) * VECTOR_SIZE);
-	float *b2 = (float*)malloc(sizeof(float) * VECTOR_SIZE);
+	float *b1 = (float*)malloc(sizeof(float) * som.VECTOR_SIZE);
+	float *b2 = (float*)malloc(sizeof(float) * som.VECTOR_SIZE);
 	for (int i=0; i<pc1.row; i++){
 		b1[i] = pc1.data[i] * bin1;
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(VECTOR_SIZE, IMAGE_MxN);
+	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_MxN);
 
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_N; i++){
 		for (int j=0; j<IMAGE_M; j++){
-			for (int k=0; k<VECTOR_SIZE; k++){
+			for (int k=0; k<som.VECTOR_SIZE; k++){
 				ww(k,i + IMAGE_M * j) = dm[k] + b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2);
 			}
 		}
@@ -543,12 +538,12 @@ int main( int argc, char **argv )
     double time;
     cutResetTimer(timer);
     cutStartTimer(timer);
-	setupCuda(ww,x,labels,(uint*)d_regular_output, d_split_output, d_log_output);
+    som.setupCuda(ww,x,labels,(uint*)d_regular_output, d_split_output, d_log_output);
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
-	if (DEBUG_PRINT)
+	if (som.DEBUG_PRINT)
 		printf("Setup time %f\n\n", time);
-	runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+	som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
 
 	cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 	cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
@@ -556,6 +551,5 @@ int main( int argc, char **argv )
 
 	glutMainLoop();
 
-	cleanup();
 	delete dm, b1,b2,labels;
 };

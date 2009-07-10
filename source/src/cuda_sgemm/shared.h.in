@@ -23,22 +23,3 @@ typedef float MATRIX_TYPE;
 #define CONFIG_PATH "${CMAKE_SOURCE_DIR}/../"
 #define LABEL_COUNT 8
 #define GENOMIC_DATA_COUNT 8
-
-
-/*
-typedef struct{
-	float *data;
-	int row;
-	int col;
-} MATRIXf;
-
-typedef struct{
-	unsigned int *data;
-	int row;
-	int col;
-} MATRIXu;
-*/
-//float operator[](MATRIX mat, unsigned int index)
-//{
-//	return mat.data[index];
-//}

@@ -18,6 +18,7 @@ INCLUDE_DIRECTORIES(
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/shared.h.in ${CMAKE_CURRENT_SOURCE_DIR}/shared.h)
 
 CUDA_ADD_EXECUTABLE(cuda_som
+	SOM.cc
 	main.cc
   cuda.cu
   )
