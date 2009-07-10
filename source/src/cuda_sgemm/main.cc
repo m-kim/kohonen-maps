@@ -292,12 +292,13 @@ void readConfig()
 	file.open(filename, std::ifstream::in);
 	std::string str;
 	if (!file.good()){
-		printf("file bad!\n");
+		printf("Configuration file missing!\n");
 		exit(-1);
 	}
 
 	while (file.good()){
 		getline(file, str);
+
 		Tokenizer tok(str);
 		if (str.find("BETA") != std::string::npos){
 			som.BETA = atoi(tok(1).c_str());
@@ -367,7 +368,7 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&
 	int line_count = 0;
 	int row = 0;
 	if (!file.good()){
-		printf("file bad!\n");
+		std::cout << "Data file missing!  " << filename.str() << std::endl;
 		exit(-1);
 	}
 	while (getline(file,str))
@@ -431,7 +432,7 @@ int main( int argc, char **argv )
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
 
 
-	getFile("foop_short", x, labels, 0,0);
+	getFile(som.DATA_FILE, x, labels, 0,0);
 
 //	make_data(2000, GENOMIC_DATA_COUNT, VECTOR_SIZE, 3.0, pc1, pc2, x);
 //	for (int i=0; i<GENOMIC_DATA_COUNT; i++){
