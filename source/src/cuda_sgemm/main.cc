@@ -1,15 +1,23 @@
 #include "shared.h"
 #include <cstdlib>
-#include <clapack.h>
 #include <cstdio>
 #include <cstring>
+#ifdef __APPLE__
+#include <GL/glew.h>
+#include <GLUT/glut.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#include "GL/glut.h"
+#else
+#include <cstdlib>
+#include <GL/glew.h>
+#include <GL/glut.h>
+#endif
 
 #include <cmath>
 #include <iostream>
 #include <fstream>
 
-#include <GL/glew.h>
-#include <GL/glut.h>
 
 #include <cutil_inline.h>
 #include <cutil_gl_inline.h>
@@ -274,7 +282,7 @@ void initGL( int argc, char **argv )
     glutIdleFunc(idle);
 
 
-
+#ifndef __APPLE__
     glewInit();
     if (!glewIsSupported("GL_VERSION_2_0 "
                          "GL_ARB_pixel_buffer_object "
@@ -283,6 +291,8 @@ void initGL( int argc, char **argv )
         fprintf(stderr, "Required OpenGL extensions are missing.");
         exit(-1);
     }
+#endif
+
 }
 void readConfig()
 {

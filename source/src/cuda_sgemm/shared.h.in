@@ -18,3 +18,6 @@ typedef float MATRIX_TYPE;
 #define CONFIG_PATH "${CMAKE_SOURCE_DIR}/../"
 #define LABEL_COUNT 8
 #define GENOMIC_DATA_COUNT 8
+
+typedef unsigned int uint;
+

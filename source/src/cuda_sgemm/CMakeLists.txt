@@ -9,6 +9,7 @@ CUDA_INCLUDE_DIRECTORIES(
 
 # The include_directories adds paths to both C/C++ compilation in the
 # native compiler and cuda compilation in NVCC.
+
 INCLUDE_DIRECTORIES(
   ${CUDA_INCLUDE_DIRS}
   ${CUDA_CUT_INCLUDE_DIR}
@@ -16,6 +17,12 @@ INCLUDE_DIRECTORIES(
   ${GLUT_INCLUDE_DIR}
   )
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/shared.h.in ${CMAKE_CURRENT_SOURCE_DIR}/shared.h)
+IF(APPLE)
+message("${CUDA_SDK_ROOT_DIR}/common/lib/darwin/")
+LINK_DIRECTORIES(
+        ${CUDA_SDK_ROOT_DIR}/common/lib/darwin/
+)
+ENDIF()
 
 CUDA_ADD_EXECUTABLE(cuda_som
 	SOM.cc
@@ -24,11 +31,12 @@ CUDA_ADD_EXECUTABLE(cuda_som
   )
 
 TARGET_LINK_LIBRARIES(cuda_som
-  ${CUDA_CUBLAS_LIBRARIES}
-  ${CUDA_CUT_LIBRARY}
-  lapack
-  GLEW
-  ${GLUT_LIBRARY}
+	${CUDA_CUBLAS_LIBRARIES}
+	${CUDA_CUT_LIBRARY}
+	lapack
+	GLEW
+	${OPENGL_LIBRARY}
+	${GLUT_LIBRARY}
   )
 
 # Or compile the cuda code into a shared library.
