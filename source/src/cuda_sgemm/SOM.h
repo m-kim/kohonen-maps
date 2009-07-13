@@ -8,8 +8,8 @@ class SOM
 {
 public:
 	SOM();
-	void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,
-			ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &data,
+	void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
+			ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &data,
 			uint *labels,
 			unsigned int *device_regular_pbo,
 			uint *device_split_pbo,
@@ -25,13 +25,13 @@ public:
 	void updateWeights();
 
 	int make_data(int n,int S, int F,float weight,
-			MATRIX<MATRIX_TYPE> &pc1,
-			MATRIX<MATRIX_TYPE> &pc2,
-			ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x);
+			MATRIX<MATRIX_TYPE, HOST> &pc1,
+			MATRIX<MATRIX_TYPE, HOST> &pc2,
+			ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x);
 
-	MATRIX<MATRIX_TYPE> device_ww2, device_save, device_sum, device_scratch;
-	MATRIX<unsigned int> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
-	ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> device_ww, device_data;
+	MATRIX<MATRIX_TYPE, DEVICE> device_ww2, device_save, device_sum, device_scratch;
+	MATRIX<unsigned int, DEVICE> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
+	ORDERED_MATRIX<MATRIX_TYPE, DEVICE, COLUMN_MAJOR> device_ww, device_data;
 
 	int genome_index;
 	int DATA_SIZE;

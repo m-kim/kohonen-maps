@@ -6,6 +6,9 @@
 
 #define ROW_MAJOR 0
 #define COLUMN_MAJOR 1
+#define DEVICE 0
+#define HOST 1
+
 extern "C" void sgesvd_(const char* jobu, const char* jobvt, const int* M, const int* N,
         float* A, const int* lda, float* S, float* U, const int* ldu,
         float* VT, const int* ldvt, float* work,const int* lwork, const
@@ -15,21 +18,27 @@ extern "C" void sgesdd_(char *jobz, int *m, int *n,
 		float *vt, int *ldvt, float *work, int *lwork, int *iwork, int *info);
 
 
-template<class T>
+template<class T, int COMPUTE_TYPE>
 class MATRIX
 {
 public:
 	T *data;
 	int row;
 	int col;
-	MATRIX<T>(){}
-	MATRIX<T>(int _row, int _col){
+	MATRIX<T,COMPUTE_TYPE>(){}
+	MATRIX<T,COMPUTE_TYPE>(int _row, int _col){
 		row = _row;
 		col = _col;
 		data = new T[row * col];
 	}
 
-	~MATRIX<T>(){cudaFree( this->data );};
+	~MATRIX<T,COMPUTE_TYPE>(){
+		if (COMPUTE_TYPE == DEVICE)
+			cudaFree( this->data );
+		else
+			delete this->data;
+
+		};
 	virtual T& operator()(int _row, int _col){
 		return this->data[_row + this->row * _col];
 	}
@@ -63,7 +72,7 @@ public:
 	void printSize(){
 		std::cout << "[" << row << "," << col << "]" << std::endl;
 	}
-	float dot(MATRIX<T> &two, int col)
+	float dot(MATRIX<T,COMPUTE_TYPE> &two, int col)
 	{
 		float sum = 0;
 		for (int i=0; i<row; i++){
@@ -75,12 +84,12 @@ public:
 };
 
 
-template<class TYPE, int ORDER = 0>
-class ORDERED_MATRIX:public MATRIX<TYPE>
+template<class TYPE, int COMPUTE_TYPE, int ORDER = 0>
+class ORDERED_MATRIX:public MATRIX<TYPE,COMPUTE_TYPE>
 {
 public:
-	ORDERED_MATRIX<TYPE, ORDER>():MATRIX<TYPE>(){};
-	ORDERED_MATRIX<TYPE, ORDER>(int _row, int _col):MATRIX<TYPE>(_row,_col){};
+	ORDERED_MATRIX<TYPE, COMPUTE_TYPE, ORDER>():MATRIX<TYPE, COMPUTE_TYPE>(){};
+	ORDERED_MATRIX<TYPE, COMPUTE_TYPE, ORDER>(int _row, int _col):MATRIX<TYPE, COMPUTE_TYPE>(_row,_col){};
 
 
 	TYPE& operator()(int _row, int _col){
@@ -150,7 +159,7 @@ public:
 		}
 	}
 
-	void pca(MATRIX<TYPE> &pca1, MATRIX<TYPE> &pca2)
+	void pca(MATRIX<TYPE, COMPUTE_TYPE> &pca1, MATRIX<TYPE, COMPUTE_TYPE> &pca2)
 	{
 		//16 x 20000 means a 16x16 covariance matrix
 		float *cov_mat = cov();

@@ -367,7 +367,7 @@ void readConfig()
 //	printf("row: %d\n",row);
 //	file.close();
 //}
-int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x, uint *&labels, uint offset, uint label_value)
+int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x, uint *&labels, uint offset, uint label_value)
 {
 	std::ifstream file;
 	std::stringstream filename;
@@ -421,7 +421,7 @@ int main( int argc, char **argv )
 		initGL(argc,argv);
 
 
-	ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> x;
+	ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> x;
 	uint *labels = 0;
 
 	std::ifstream file;
@@ -450,9 +450,9 @@ int main( int argc, char **argv )
 //			labels[i * 2000 + j] = i;
 //		}
 //	}
-	MATRIX<float> pc1(som.VECTOR_SIZE, 1);
+	MATRIX<float, HOST> pc1(som.VECTOR_SIZE, 1);
 
-	MATRIX<float> pc2(som.VECTOR_SIZE, 1);
+	MATRIX<float, HOST> pc2(som.VECTOR_SIZE, 1);
 
 
 	//x.normalize();
@@ -470,9 +470,9 @@ int main( int argc, char **argv )
 	//it needed a reverse index
 	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
 
-	ORDERED_MATRIX<float, COLUMN_MAJOR> data_dm(som.DATA_SIZE, som.VECTOR_SIZE);
-	MATRIX<float> pd1(som.DATA_SIZE, 1);
-	MATRIX<float> pd2(som.DATA_SIZE, 1);
+	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> data_dm(som.DATA_SIZE, som.VECTOR_SIZE);
+	MATRIX<float, HOST> pd1(som.DATA_SIZE, 1);
+	MATRIX<float, HOST> pd2(som.DATA_SIZE, 1);
 
 	for (int i=0; i<data_dm.row; i++){
 		for (int j=0; j<data_dm.col; j++){
@@ -511,7 +511,7 @@ int main( int argc, char **argv )
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	ORDERED_MATRIX<float, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_MxN);
+	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_MxN);
 
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_N; i++){

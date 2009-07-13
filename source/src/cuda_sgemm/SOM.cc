@@ -59,8 +59,8 @@ void SOM::updateWeights()
 	cuda_updateWeights(device_ww.data, device_sum.data, host_alpha[0]);
 }
 
-void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, COLUMN_MAJOR> &ww,
-		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &data,
+void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
+		ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &data,
 		uint *labels,
 		unsigned int *device_regular_pbo,
 		uint *device_split_pbo,
@@ -226,9 +226,9 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     	tmp << CONFIG_PATH << "indices" << counter;
 		std::string filename(tmp.str());
 
-		MATRIX<unsigned int> save_labels(device_labels.row,device_labels.col);
+		MATRIX<unsigned int, HOST> save_labels(device_labels.row,device_labels.col);
 		cutilSafeCall(cudaMemcpy(save_labels.data, device_labels.data, sizeof(unsigned int) * save_labels.row * save_labels.col, cudaMemcpyDeviceToHost));
-		MATRIX<unsigned int> indices(device_indices.row, device_indices.col);
+		MATRIX<unsigned int, HOST> indices(device_indices.row, device_indices.col);
 		cutilSafeCall(cudaMemcpy(indices.data, device_indices.data, sizeof(unsigned int) * indices.row * indices.col, cudaMemcpyDeviceToHost));
 
     	file.open(filename.c_str());
@@ -236,12 +236,6 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     	for (int i=0; i<DATA_SIZE; i++){
     		file << indices.data[i] << " " << save_labels.data[i] << std::endl;
     	}
-
-		//wtf?
-		delete save_labels.data;
-		save_labels.data= 0;
-		delete indices.data;
-		indices.data= 0;
 
     	file.close();
     }
@@ -252,10 +246,10 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
    	return EXIT_SUCCESS;
 }
 
-int SOM::make_data(int n,int S, int F,float weight,
-		MATRIX<MATRIX_TYPE> &pc1,
-		MATRIX<MATRIX_TYPE> &pc2,
-		ORDERED_MATRIX<MATRIX_TYPE, ROW_MAJOR> &x)
+int make_data(int n,int S, int F,float weight,
+		MATRIX<MATRIX_TYPE, HOST> &pc1,
+		MATRIX<MATRIX_TYPE, HOST> &pc2,
+		ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x)
 {
 	float center_vec[F];
 	for (int i=0; i<S; i++){
