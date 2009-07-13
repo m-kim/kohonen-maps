@@ -132,9 +132,6 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
     cutilSafeCall(cudaMalloc((void**)&device_scratch.data, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
     cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
 
-    device_save.row = device_ww2.row;
-    device_save.col = device_ww2.col;
-    device_save.data = device_scratch.data;
 
     device_data.row = data.row;
     device_data.col = data.col;
@@ -170,12 +167,12 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     //this is related to IMAGE_MXN
     calc_ww2(device_ww.data,device_ww2.data);
 
-    cutilSafeCall(cudaMemcpy(device_save.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
+    cutilSafeCall(cudaMemcpy(device_scratch.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<DATA_SIZE; i++){
     	if ( !(i % 10000) && DEBUG_PRINT)
     		printf("%d\n",i);
-	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_save.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
+	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_scratch.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
 		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
 				device_data.data + i * device_data.col,
 				1,

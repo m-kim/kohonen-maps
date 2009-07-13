@@ -34,7 +34,7 @@ public:
 
 	~MATRIX<T,COMPUTE_TYPE>(){
 		if (COMPUTE_TYPE == DEVICE)
-			cudaFree( this->data );
+			cutilSafeCall(cudaFree( this->data ));
 		else
 			delete this->data;
 
