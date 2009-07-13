@@ -18,7 +18,6 @@ INCLUDE_DIRECTORIES(
   )
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/shared.h.in ${CMAKE_CURRENT_SOURCE_DIR}/shared.h)
 IF(APPLE)
-message("${CUDA_SDK_ROOT_DIR}/common/lib/darwin/")
 LINK_DIRECTORIES(
         ${CUDA_SDK_ROOT_DIR}/common/lib/darwin/
 )
