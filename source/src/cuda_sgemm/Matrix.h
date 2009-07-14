@@ -25,11 +25,16 @@ public:
 	T *data;
 	int row;
 	int col;
-	MATRIX<T,COMPUTE_TYPE>(){}
+	float toler;
+	MATRIX<T,COMPUTE_TYPE>(){
+		toler = .1;
+	}
 	MATRIX<T,COMPUTE_TYPE>(int _row, int _col){
 		row = _row;
 		col = _col;
 		data = new T[row * col];
+
+		toler = .1;
 	}
 
 	~MATRIX<T,COMPUTE_TYPE>(){
@@ -158,10 +163,23 @@ public:
 			}
 		}
 	}
-
 	void pca(MATRIX<TYPE, COMPUTE_TYPE> &pca1, MATRIX<TYPE, COMPUTE_TYPE> &pca2)
 	{
-		//16 x 20000 means a 16x16 covariance matrix
+		//svd(pca1, pca2);
+
+		ORDERED_MATRIX<float, COMPUTE_TYPE, COLUMN_MAJOR> cov_mat;
+		cov_mat.row = this->col;
+		cov_mat.col = this->col;
+		cov_mat.data = cov();
+		printf("cov done\n");
+
+		float n = power_method(cov_mat,pca1);
+		printf("finished\n");
+		deflation_method(cov_mat,pca1, pca2,n);
+	}
+
+	void svd(MATRIX<TYPE, COMPUTE_TYPE> &pca1, MATRIX<TYPE, COMPUTE_TYPE> &pca2)
+	{
 		float *cov_mat = cov();
 
 		unsigned int _row = this->row;
@@ -217,6 +235,79 @@ public:
 	//	memcpy(pca2, &vv[1], sizeof(float)* mat_m);
 
 		delete cov_mat;
+	}
+
+	float power_method(ORDERED_MATRIX<float, COMPUTE_TYPE, COLUMN_MAJOR> &mat ,MATRIX<TYPE, COMPUTE_TYPE> &x)
+	{
+//		dd=1;
+//		x=start;
+//		n=10;
+//		while dd> toler
+//		pause
+//		end
+//		vec=x;
+//		value=n;
+
+
+		for (int i=0; i<mat.row; i++){
+			x.data[i] = 1;
+		}
+		float y[mat.col];
+		for (int i=0; i<mat.col; i++){
+			y[i] = 0;
+		}
+
+		float dd = 1;
+		float n = 10;
+		int iter = 0;
+		while (dd > this->toler){
+			iter++;
+			memset(y, 0, sizeof(float) * mat.col);
+			//		y=A*x
+			for (int i=0; i<mat.row; i++){
+				for (int j=0; j<mat.col; j++){
+					y[i] += mat(i,j) * x.data[j];
+				}
+			}
+			float tmp = 1;
+			for (int i=0; i<mat.row; i++){
+				tmp += x.data[i] * x.data[i];
+			}
+
+			//		dd=abs(norm(x)-n);
+			tmp = sqrt(tmp);
+			dd = fabs(tmp - n);
+			//		n=norm(x)
+			n = tmp;
+			//		x=y/n
+			for (int i=0; i<mat.row; i++){
+				x.data[i] = y[i] / n;
+			}
+		}
+		float tmp = 1;
+		for (int i=0; i<mat.col; i++){
+			tmp += x.data[i] * x.data[i];
+		}
+
+		tmp = sqrt(tmp);
+		for (int i=0; i<mat.col; i++){
+			x.data[i] /= tmp;
+		}
+		return n;
+	}
+
+	void deflation_method(ORDERED_MATRIX<float, COMPUTE_TYPE, COLUMN_MAJOR> &mat, MATRIX<TYPE,COMPUTE_TYPE> &in,
+							MATRIX<TYPE, COMPUTE_TYPE> &x, float n)
+	{
+		for (int i=0; i<mat.row; i++){
+			for (int j=0; j<mat.col; j++){
+				mat(i,j) -= n * in.data[i] * in.data[j];
+			}
+		}
+		for (int i=0; i<mat.row; i++){
+			x.data[i] = 1;
+		}
+		power_method(mat, x);
 	}
 };
 #endif

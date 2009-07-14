@@ -262,7 +262,6 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float 
 extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
 {
 	dev_reduce<<<1,REDUCE_BLOCKSIZE>>>(ret,indices,ww_sum, vec,data, index);
-
 }
 
 __global__ void dev_buildImage(uint *im, uint *labels, uint *indices)
@@ -318,6 +317,7 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 	}
 	im[index] = GENOMIC_DATA_COUNT;
 }
+
 __global__ void dev_expandSplitImage(uint *im, const uint *ret)
 {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
