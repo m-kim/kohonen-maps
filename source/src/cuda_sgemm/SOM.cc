@@ -15,6 +15,7 @@ extern "C" void expandConstantImage(uint *im, const uint *ret);
 extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index);
 extern "C" void cuda_updateWeights(float *ww, float *avg_weight, float alpha);
 extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
+extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
 
 SOM::SOM()
 {
@@ -140,6 +141,10 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
     cutilSafeCall(cudaMalloc((void**)&device_data.data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
 
+    mean(device_data.data, device_scratch.data);
+    MATRIX<float, HOST> tmp(device_data.col,1);
+    cudaMemcpy(tmp.data, device_scratch.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
+	tmp.print();
     updateConvergence();
 }
 

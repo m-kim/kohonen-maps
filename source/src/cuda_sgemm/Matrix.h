@@ -27,14 +27,14 @@ public:
 	int col;
 	float toler;
 	MATRIX<T,COMPUTE_TYPE>(){
-		toler = .1;
+		toler = .5;
 	}
 	MATRIX<T,COMPUTE_TYPE>(int _row, int _col){
 		row = _row;
 		col = _col;
 		data = new T[row * col];
 
-		toler = .1;
+		toler = .5;
 	}
 
 	~MATRIX<T,COMPUTE_TYPE>(){
@@ -133,6 +133,10 @@ public:
 		int _row = this->row;
 		TYPE *covariance = (TYPE*)malloc(sizeof(TYPE) * this->col * this->col);
 		TYPE *mean_val = mean();
+		for (int i=0; i<16; i++)
+			printf("%f ", mean_val[i]);
+		printf("\n");
+
 		for(int i=0; i< _col; i++){
 			for (int j=0; j< _col;j++){
 					covariance[i * _col + j] = 0;
@@ -165,23 +169,24 @@ public:
 	}
 	void pca(MATRIX<TYPE, COMPUTE_TYPE> &pca1, MATRIX<TYPE, COMPUTE_TYPE> &pca2)
 	{
-		//svd(pca1, pca2);
+		svd(pca1, pca2);
 
-		ORDERED_MATRIX<float, COMPUTE_TYPE, COLUMN_MAJOR> cov_mat;
-		cov_mat.row = this->col;
-		cov_mat.col = this->col;
-		cov_mat.data = cov();
-		printf("cov done\n");
-
-		float n = power_method(cov_mat,pca1);
-		printf("finished\n");
-		deflation_method(cov_mat,pca1, pca2,n);
+//		ORDERED_MATRIX<float, COMPUTE_TYPE, COLUMN_MAJOR> cov_mat;
+//		cov_mat.row = this->col;
+//		cov_mat.col = this->col;
+//		cov_mat.data = cov();
+//		printf("cov done\n");
+//
+//		float n = power_method(cov_mat,pca1);
+//		printf("finished\n");
+//		deflation_method(cov_mat,pca1, pca2,n);
 	}
 
 	void svd(MATRIX<TYPE, COMPUTE_TYPE> &pca1, MATRIX<TYPE, COMPUTE_TYPE> &pca2)
 	{
-		float *cov_mat = cov();
 
+		float *cov_mat = cov();
+		printf("cov done\n");
 		unsigned int _row = this->row;
 		unsigned int _col = this->col;
 
