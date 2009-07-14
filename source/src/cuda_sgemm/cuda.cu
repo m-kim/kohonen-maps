@@ -102,11 +102,33 @@ __global__ void dev_calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 	}
 }
 
+
 extern "C" void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 {
 	dev_calc_ww2<<<IMAGE_MxN/128,128>>>(ww,ww2);
     cudaThreadSynchronize();
 
+}
+
+__global__ void dev_cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val)
+{
+	int i = threadIdx.x + blockIdx.x * blockDim.x;
+	int j = threadIdx.y + blockIdx.y * blockDim.y;
+
+	//TYPE *covariance = (TYPE*)malloc(sizeof(TYPE) * this->col * this->col);
+	//TYPE *mean_val = mean();
+	covariance[i * device_vector_size[0] + j] = 0;
+	for (int k=0; k < device_data_size[0]; k++){
+			covariance[i * device_vector_size[0] + j] += (data[k * device_vector_size[0] + i] - mean_val[i]) * (data[k * device_vector_size[0] + j] - mean_val[j]);
+	}
+	covariance[i * device_vector_size[0] + j] /= (device_data_size[0] - 1);
+}
+
+extern "C" void cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val)
+{
+	dim3 block(16,16);
+	dim3 grid(1,1);
+	dev_cov<<<grid,block>>>(data,covariance,mean_val);
 }
 __global__ void dev_prepSum(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
@@ -125,7 +147,27 @@ __global__ void dev_prepSum(float *a, float *b, uint *ww_count, uint *count, int
 		}
 	}
 }
+__global__ void dev_mean(const MATRIX_TYPE *data, MATRIX_TYPE *ret)
+{
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+//	int j = threadIdx.y + blockDim.y * blockIdx.y;
 
+	//get the mean value for each row...
+	//float *ret = (float*)malloc(sizeof(float) * this->col);
+//	for(int i=0; i<device_vector_size[0];i++){
+		ret[i] = 0.0;
+		for(int j=0; j<device_data_size[0]; j++){
+			ret[i] += data[j * device_vector_size[0] + i];
+		}
+		ret[i] = ret[i] / device_data_size[0];
+//	}
+
+}
+
+extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret)
+{
+	dev_mean<<<1, 16>>>(data, ret);
+}
 extern "C" void prepSum(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	dim3 block(16,16);

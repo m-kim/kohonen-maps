@@ -16,6 +16,7 @@ extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec
 extern "C" void cuda_updateWeights(float *ww, float *avg_weight, float alpha);
 extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
 extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
+extern "C" void cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val);
 
 SOM::SOM()
 {
@@ -141,10 +142,20 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
     cutilSafeCall(cudaMalloc((void**)&device_data.data, sizeof(float) * device_data.row*device_data.col));
     cutilSafeCall(cudaMemcpy(device_data.data, data.data, sizeof(float) * device_data.row * device_data.col, cudaMemcpyHostToDevice));
 
+    device_covariance.row = data.col;
+    device_covariance.col = data.col;
+    if (DEBUG_PRINT)
+		printf("setup matrix data %d %d\n", device_data.row, device_data.col);
+	cutilSafeCall(cudaMalloc((void**)&device_covariance.data, sizeof(float) * device_covariance.row*device_covariance.col));
+	cutilSafeCall(cudaMemset(device_covariance.data, 0, sizeof(float) *  device_covariance.row*device_covariance.col));
+
+
     mean(device_data.data, device_scratch.data);
-    MATRIX<float, HOST> tmp(device_data.col,1);
-    cudaMemcpy(tmp.data, device_scratch.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
+    cov(device_data.data, device_covariance.data, device_scratch.data);
+    MATRIX<float, HOST> tmp(device_covariance.row,device_covariance.col);
+    cudaMemcpy(tmp.data, device_covariance.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
 	tmp.print();
+
     updateConvergence();
 }
 

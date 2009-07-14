@@ -133,9 +133,6 @@ public:
 		int _row = this->row;
 		TYPE *covariance = (TYPE*)malloc(sizeof(TYPE) * this->col * this->col);
 		TYPE *mean_val = mean();
-		for (int i=0; i<16; i++)
-			printf("%f ", mean_val[i]);
-		printf("\n");
 
 		for(int i=0; i< _col; i++){
 			for (int j=0; j< _col;j++){
@@ -186,7 +183,12 @@ public:
 	{
 
 		float *cov_mat = cov();
-		printf("cov done\n");
+		for (int i = 0; i<16; i++){
+			for (int j=0; j<16; j++){
+				printf("%f ", cov_mat[i * 16 + j]);
+			}
+			printf("\n");
+		}
 		unsigned int _row = this->row;
 		unsigned int _col = this->col;
 
