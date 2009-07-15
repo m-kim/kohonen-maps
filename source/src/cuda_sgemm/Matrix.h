@@ -51,12 +51,26 @@ public:
 		return this->data[_row + this->row * _col];
 	}
 	virtual void print(){
-		for (int i=0; i<this->row; i++){
-			for (int j=0; j<this->col; j++){
+		T *tmp;
+		if (COMPUTE_TYPE == DEVICE){
+			MATRIX<T, HOST> tmp(row,col);
+			cutilSafeCall(cudaMemcpy(tmp.data, data, sizeof(T) * row * col, cudaMemcpyDeviceToHost));
+			for (int i=0; i<row; i++){
+				for (int j=0; j<col; j++){
 
-				std::cout << (*this)(i,j) << " ";
+					std::cout << tmp(i,j) << " ";
+				}
+				std::cout << std::endl;
 			}
-			std::cout << std::endl;
+		}
+		else{
+			for (int i=0; i<this->row; i++){
+				for (int j=0; j<this->col; j++){
+
+					std::cout << (*this)(i,j) << " ";
+				}
+				std::cout << std::endl;
+			}
 		}
 	}
 
