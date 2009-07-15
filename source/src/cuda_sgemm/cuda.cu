@@ -141,7 +141,7 @@ __global__ void dev_prepSum(float *a, float *b, uint *ww_count, uint *count, int
 
 		for (int x=imin; x<imax; x++){
 			for (int k=0; k<device_vector_size[0]; k++){
-				b[k + device_vector_size[0] * ( row + IMAGE_M * col )] += a[k + device_vector_size[0] * (x + IMAGE_M * col)];
+				b[k + device_vector_size[0] * index] += a[k + device_vector_size[0] * (x + IMAGE_M * col)];
 			}
 			count[index] += ww_count[x + IMAGE_M * col];
 		}
@@ -180,6 +180,7 @@ __global__ void dev_prepSum2(float *ww, float *a, float *b, uint *ww_count, uint
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
+	int index = row + IMAGE_M * col;
 
 	//	__shared__ float s_ww[IMAGE_N * IMAGE_M];
 
@@ -188,9 +189,9 @@ __global__ void dev_prepSum2(float *ww, float *a, float *b, uint *ww_count, uint
 		int imax = min(col + _beta + 1,IMAGE_N);
 		for (int x=imin; x<imax; x++){
 			for (int k=0; k<device_vector_size[0]; k++){
-				a[k + device_vector_size[0] * ( col + IMAGE_M * row) ] += b[k + device_vector_size[0] * ( col + IMAGE_M * x) ];
+				a[k + device_vector_size[0] * index ] += b[k + device_vector_size[0] * ( row + IMAGE_M * x) ];
 			}
-			ww_count[col + IMAGE_M * row] += count[col + IMAGE_M * x];
+			ww_count[index] += count[row + IMAGE_M * x];
 		}
 	}
 }
