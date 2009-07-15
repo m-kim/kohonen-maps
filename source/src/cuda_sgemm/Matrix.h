@@ -183,12 +183,6 @@ public:
 	{
 
 		float *cov_mat = cov();
-		for (int i = 0; i<16; i++){
-			for (int j=0; j<16; j++){
-				printf("%f ", cov_mat[i * 16 + j]);
-			}
-			printf("\n");
-		}
 		unsigned int _row = this->row;
 		unsigned int _col = this->col;
 

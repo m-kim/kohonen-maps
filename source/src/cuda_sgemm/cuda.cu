@@ -208,7 +208,7 @@ __global__ void dev_updateWeights(float *ww, float *avg_weight, float alpha)
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
 	int index =  device_vector_size[0] * (row + IMAGE_M * col);
 	for (int i=0; i<device_vector_size[0]; i++){
-		ww[i + index] = ww[i + index] + abs(alpha * (avg_weight[i + index] - ww[i + index]));
+		ww[i + index] = ww[i + index] + alpha * (avg_weight[i + index] - ww[i + index]);
 	}
 
 //	//we're using avg_weight as a cache
