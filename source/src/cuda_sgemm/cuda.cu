@@ -78,10 +78,10 @@ extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE)
 	color[35] = 0;
 
 	//this is the empty space
-	color[32] = 0;
-	color[33] = 0;
-	color[34] = 0;
-	color[35] = 0;
+//	color[32] = 0;
+//	color[33] = 0;
+//	color[34] = 0;
+//	color[35] = 0;
 
 
 	cutilSafeCall(cudaMemcpyToSymbol(constant_color, color, sizeof(unsigned int) * COLOR_SIZE, 0));

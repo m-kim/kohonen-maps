@@ -553,7 +553,7 @@ int main( int argc, char **argv )
 	float *b2 = (float*)malloc(sizeof(float) * som.VECTOR_SIZE);
 	for (int i=0; i<pc1.row; i++){
 		b1[i] = pc1.data[i] * bin1;
-		b2[i] = pc2.data[i] * bin1;
+		b2[i] = pc2.data[i] * bin2;
 	}
 
 	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_MxN);
@@ -562,7 +562,7 @@ int main( int argc, char **argv )
 	for (int i=0; i<IMAGE_N; i++){
 		for (int j=0; j<IMAGE_M; j++){
 			for (int k=0; k<som.VECTOR_SIZE; k++){
-				ww(k,i + IMAGE_M * j) = dm[k] + 5 * std1 * (pc1.data[k] * (i - IMAGE_N/2) + pc2.data[k] * (j-IMAGE_M/2)) / IMAGE_M;
+				ww(k,i + IMAGE_M * j) = dm[k] + (b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2));
 			}
 		}
 	}

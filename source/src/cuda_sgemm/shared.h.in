@@ -1,7 +1,7 @@
 #include "Matrix.h"
 
-#define IMAGE_M 128
-#define IMAGE_N 128
+#define IMAGE_M 32
+#define IMAGE_N 32
 #define IMAGE_MxN IMAGE_M * IMAGE_N
 #define REDUCE_BLOCKSIZE 128
 #define LOG2_REDUCE_BLOCKSIZE 7
