@@ -158,9 +158,6 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 
     mean(device_data.data, device_scratch.data);
     cov(device_data.data, device_covariance.data, device_scratch.data);
-    MATRIX<float, HOST> tmp(device_covariance.row,device_covariance.col);
-    cudaMemcpy(tmp.data, device_covariance.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
-	tmp.print();
 
     updateConvergence();
 }

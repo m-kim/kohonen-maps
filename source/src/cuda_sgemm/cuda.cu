@@ -77,7 +77,7 @@ extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE)
 	color[34] = 128;
 	color[35] = 0;
 
-	//this is the empty space
+		//this is the empty space
 //	color[32] = 0;
 //	color[33] = 0;
 //	color[34] = 0;

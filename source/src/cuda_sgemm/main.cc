@@ -361,44 +361,7 @@ int getLineCount(std::string name)
 	file.close();
 	return line_count;
 }
-//int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, uint *labels, int offset, uint label_value)
-//{
-//	std::ifstream file;
-//	std::stringstream filename;
-//	filename << som.DATA_PATH << name;
-//	file.open(filename.str().c_str(), std::ifstream::in);
-//	std::string str;
-//
-//	int line_count = 0;
-//	int row = 0;
-//	if (!file.good()){
-//		std::cout << "Data file missing!  " << filename.str() << std::endl;
-//		exit(-1);
-//	}
-//	while (getline(file,str))
-//		line_count++;
-//	file.clear();
-//	file.seekg(0);
-//
-//	while (file.good()){
-//		getline(file, str);
-//		if (isdigit(str.c_str()[0])){
-//			char *tok = strtok((char*)str.c_str(), ",");
-//			for (int i=0; i<som.VECTOR_SIZE; i++){
-//				//16 rows by 20000 cols in the file
-//				x(offset + row, i) = atof(tok);
-//				tok = strtok(NULL, " ");
-//			}
-//			labels[offset + row] = label_value;
-//			row++;
-//		}
-//	}
-//
-//	printf("row: %d\n",row);
-//	file.close();
-//	return row;
-//}
-int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x, uint *&labels, uint offset, uint label_value)
+int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, uint *labels, int offset, uint label_value)
 {
 	std::ifstream file;
 	std::stringstream filename;
@@ -417,31 +380,68 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x, u
 	file.clear();
 	file.seekg(0);
 
-	x.row = line_count;
-	x.col = som.VECTOR_SIZE;
-	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);
-	labels = (uint*)malloc(sizeof(uint) * x.row);
-
-	som.DATA_SIZE = line_count;
-	while (getline(file, str)){
-		//if (isdigit(str.c_str()[0])){
-		char *tok = strtok((char*)str.c_str(), " ");
-
-		x(row, 0) = atof(tok);
-		for (int i=1; i<som.VECTOR_SIZE; i++){
-			tok = strtok(NULL, " ");
-			x(row, i) = atof(tok);
+	while (file.good()){
+		getline(file, str);
+		if (isdigit(str.c_str()[0])){
+			char *tok = strtok((char*)str.c_str(), ",");
+			for (int i=0; i<som.VECTOR_SIZE; i++){
+				//16 rows by 20000 cols in the file
+				x(offset + row, i) = atof(tok);
+				tok = strtok(NULL, " ");
+			}
+			labels[offset + row] = label_value;
+			row++;
 		}
-		tok = strtok(NULL, " ");
-		labels[row] = atoi(tok);
-		row++;
 	}
 
-	if (som.DEBUG_PRINT)
-		printf("row: %d %d\n",row, line_count);
+	printf("row: %d\n",row);
 	file.close();
 	return row;
 }
+//int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x, uint *&labels, uint offset, uint label_value)
+//{
+//	std::ifstream file;
+//	std::stringstream filename;
+//	filename << som.DATA_PATH << name;
+//	file.open(filename.str().c_str(), std::ifstream::in);
+//	std::string str;
+//
+//	int line_count = 0;
+//	int row = 0;
+//	if (!file.good()){
+//		std::cout << "Data file missing!  " << filename.str() << std::endl;
+//		exit(-1);
+//	}
+//	while (getline(file,str))
+//		line_count++;
+//	file.clear();
+//	file.seekg(0);
+//
+//	x.row = line_count;
+//	x.col = som.VECTOR_SIZE;
+//	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);
+//	labels = (uint*)malloc(sizeof(uint) * x.row);
+//
+//	som.DATA_SIZE = line_count;
+//	while (getline(file, str)){
+//		//if (isdigit(str.c_str()[0])){
+//		char *tok = strtok((char*)str.c_str(), " ");
+//
+//		x(row, 0) = atof(tok);
+//		for (int i=1; i<som.VECTOR_SIZE; i++){
+//			tok = strtok(NULL, " ");
+//			x(row, i) = atof(tok);
+//		}
+//		tok = strtok(NULL, " ");
+//		labels[row] = atoi(tok);
+//		row++;
+//	}
+//
+//	if (som.DEBUG_PRINT)
+//		printf("row: %d %d\n",row, line_count);
+//	file.close();
+//	return row;
+//}
 
 int main( int argc, char **argv )
 {
@@ -460,37 +460,37 @@ int main( int argc, char **argv )
 	std::string str;
 	int row = 0;
 	int line_count = 0;
-//	line_count += getLineCount("anoGAm1-100k.fa");
-//	line_count += getLineCount("cb3-100k.fa");
-//	line_count += getLineCount("ce2-100k.fa");
-//	line_count += getLineCount("dm2-100k.fa");
-//	line_count += getLineCount("dp3-100k.fa");
-//	line_count += getLineCount("galgal2-100k.fa");
-//	line_count += getLineCount("galgal2-100k.fa");
-//	line_count += getLineCount("fr2-100k.fa");
-//	line_count += getLineCount("tetnig1-100k.fa");
-//	line_count += getLineCount("ci1-100k.fa");
+	line_count += getLineCount("anoGAm1-100k.fa");
+	line_count += getLineCount("cb3-100k.fa");
+	line_count += getLineCount("ce2-100k.fa");
+	line_count += getLineCount("dm2-100k.fa");
+	line_count += getLineCount("dp3-100k.fa");
+	line_count += getLineCount("galgal2-100k.fa");
+	line_count += getLineCount("galgal2-100k.fa");
+	line_count += getLineCount("fr2-100k.fa");
+	line_count += getLineCount("tetnig1-100k.fa");
+	line_count += getLineCount("ci1-100k.fa");
 //	line_count += getLineCount("danrer3-100k.fa");
-//
-//	x.row = line_count;
-//	x.col = som.VECTOR_SIZE;
-//	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);	labels = (uint*)malloc(sizeof(uint) * x.row);
-//	som.DATA_SIZE = line_count;
-//
-//	row += getFile("anoGAm1-100k.fa", x, labels, 0, 0);
-//	row += getFile("cb3-100k.fa", x, labels, row, 1);
-//	row += getFile("ce2-100k.fa", x, labels, row, 2);
-//	row += getFile("dm2-100k.fa", x, labels, row, 3);
-//	row += getFile("dp3-100k.fa", x, labels, row, 4);
-//	row += getFile("galgal2-100k.fa", x, labels, row, 5);
-//	row += getFile("fr2-100k.fa", x, labels, row, 6);
-//	row += getFile("tetnig1-100k.fa", x, labels, row, 7);
-//	row += getFile("ci1-100k.fa", x, labels, row, 8);
+
+	x.row = line_count;
+	x.col = som.VECTOR_SIZE;
+	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);	labels = (uint*)malloc(sizeof(uint) * x.row);
+	som.DATA_SIZE = line_count;
+
+	row += getFile("anoGAm1-100k.fa", x, labels, 0, 0);
+	row += getFile("cb3-100k.fa", x, labels, row, 1);
+	row += getFile("ce2-100k.fa", x, labels, row, 2);
+	row += getFile("dm2-100k.fa", x, labels, row, 3);
+	row += getFile("dp3-100k.fa", x, labels, row, 4);
+	row += getFile("galgal2-100k.fa", x, labels, row, 5);
+	row += getFile("fr2-100k.fa", x, labels, row, 6);
+	row += getFile("tetnig1-100k.fa", x, labels, row, 7);
+	row += getFile("ci1-100k.fa", x, labels, row, 8);
 //	row += getFile("danrer3-100k.fa", x, labels, row, 9);
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
 
 
-	getFile(som.DATA_FILE, x, labels, 0,0);
+//	getFile(som.DATA_FILE, x, labels, 0,0);
 
 //	make_data(2000, GENOMIC_DATA_COUNT, VECTOR_SIZE, 3.0, pc1, pc2, x);
 //	for (int i=0; i<GENOMIC_DATA_COUNT; i++){
