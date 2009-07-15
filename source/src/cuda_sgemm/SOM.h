@@ -47,6 +47,7 @@ public:
 	std::string DATA_PATH;
 	std::string DATA_FILE;
 	int counter;
+	int EXPANSION;
 };
 
 #endif

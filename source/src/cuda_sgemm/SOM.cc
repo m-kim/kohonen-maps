@@ -35,6 +35,7 @@ SOM::SOM()
 
 	counter = 0;
 
+	EXPANSION = 4;
 }
 void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
 {
@@ -60,18 +61,6 @@ void SOM::updateWeights()
 	normalizeSum(device_sum.data, device_ww_count.data);
 
 	cuda_updateWeights(device_ww.data, device_sum.data, host_alpha[0]);
-	device_sum.print();
-//	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> tmp(device_sum.row, device_sum.col);
-//	cudaMemcpy(tmp.data, device_sum.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
-//	for (int i=0; i<tmp.row; i++){
-//		for (int j=0; j<32; j++){
-//			for (int k=0; k<32; k++){
-//				printf("%f ", tmp.data[i * (j * 32 + k)]);
-//			}
-//			printf("\n");
-//		}
-//		printf("\n");
-//	}
 }
 
 void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,

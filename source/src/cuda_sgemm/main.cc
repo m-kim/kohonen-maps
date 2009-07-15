@@ -31,7 +31,7 @@ SOM som;
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
 int split_som_window = 0, som_window = 0;
-float expansion = 4;
+
 float bin1, bin2;
 uint *d_split_output;
 uchar4 *d_regular_output;
@@ -337,6 +337,9 @@ void readConfig()
 		else if (str.find("VECTOR_SIZE") != std::string::npos){
 			som.VECTOR_SIZE = atoi(tok(1).c_str());
 		}
+		else if (str.find("EXPANSION") != std::string::npos){
+			som.EXPANSION = atoi(tok(1).c_str());
+		}
 	}
 }
 int getLineCount(std::string name)
@@ -537,8 +540,8 @@ int main( int argc, char **argv )
 	//ummm...this is only if M is "None"
 	//M = int(N * std2 / std1);
 
-	bin1 = 2 * expansion * std1 / IMAGE_N;
-	bin2 = 2 * expansion * std2 / IMAGE_M;
+	bin1 = 2 * som.EXPANSION * std1 / IMAGE_N;
+	bin2 = 2 * som.EXPANSION * std2 / IMAGE_M;
 
 	if (som.DEBUG_PRINT){
 		printf("Std dev: %f %f\n", std1,std2);
