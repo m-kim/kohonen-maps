@@ -6,7 +6,7 @@
 
 extern "C" void expandSplitImage(uint *im, const uint *ret);
 extern "C" void prepSum(float *a, float *b, uint *ww_count, uint *count, int _beta);
-extern "C" void prepSum2(float *ww, float *a, float *b, uint *ww_count, uint *count, int _beta);
+extern "C" void prepSum2(float *a, float *b, uint *ww_count, uint *count, int _beta);
 extern "C" void normalizeSum(float *a, unsigned int* ww_count);
 extern "C" void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2);
 extern "C" void safeMemset(void *ptr, char value, unsigned int size);
@@ -56,10 +56,22 @@ void SOM::updateWeights()
     cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
 
     prepSum(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
-	prepSum2(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
-	device_ww_count.print();
+	prepSum2(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	normalizeSum(device_sum.data, device_ww_count.data);
+
 	cuda_updateWeights(device_ww.data, device_sum.data, host_alpha[0]);
+	device_sum.print();
+//	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> tmp(device_sum.row, device_sum.col);
+//	cudaMemcpy(tmp.data, device_sum.data, tmp.row * tmp.col * sizeof(float), cudaMemcpyDeviceToHost);
+//	for (int i=0; i<tmp.row; i++){
+//		for (int j=0; j<32; j++){
+//			for (int k=0; k<32; k++){
+//				printf("%f ", tmp.data[i * (j * 32 + k)]);
+//			}
+//			printf("\n");
+//		}
+//		printf("\n");
+//	}
 }
 
 void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
@@ -183,7 +195,7 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col));
     cutilSafeCall(cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row));
-
+	cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col));
 
     //this is related to IMAGE_MXN
     calc_ww2(device_ww.data,device_ww2.data);

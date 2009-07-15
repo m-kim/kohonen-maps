@@ -52,16 +52,18 @@ public:
 	}
 	virtual void print(){
 		T *tmp;
+		T sum = 0;
 		if (COMPUTE_TYPE == DEVICE){
 			MATRIX<T, HOST> tmp(row,col);
 			cutilSafeCall(cudaMemcpy(tmp.data, data, sizeof(T) * row * col, cudaMemcpyDeviceToHost));
 			for (int i=0; i<row; i++){
 				for (int j=0; j<col; j++){
-
+					sum += tmp(i,j);
 					std::cout << tmp(i,j) << " ";
 				}
 				std::cout << std::endl;
 			}
+			std::cout << sum << std::endl;
 		}
 		else{
 			for (int i=0; i<this->row; i++){

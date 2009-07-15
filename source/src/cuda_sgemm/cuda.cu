@@ -176,7 +176,7 @@ extern "C" void prepSum(float *a, float *b, uint *ww_count, uint *count, int _be
 	cudaThreadSynchronize();
 }
 
-__global__ void dev_prepSum2(float *ww, float *a, float *b, uint *ww_count, uint *count, int _beta)
+__global__ void dev_prepSum2(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
@@ -195,11 +195,11 @@ __global__ void dev_prepSum2(float *ww, float *a, float *b, uint *ww_count, uint
 		}
 	}
 }
-extern "C" void prepSum2(float *ww, float *a, float *b, uint *ww_count, uint *count, int _beta)
+extern "C" void prepSum2(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	dim3 block(16,16);
 	dim3 grid(IMAGE_M/16,IMAGE_N/16);
-	dev_prepSum2<<<grid,block>>>(ww, a, b, ww_count, count, _beta);
+	dev_prepSum2<<<grid,block>>>(a, b, ww_count, count, _beta);
 	cudaThreadSynchronize();
 }
 
