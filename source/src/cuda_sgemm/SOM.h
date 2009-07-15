@@ -30,7 +30,7 @@ public:
 			ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &x);
 
 	MATRIX<MATRIX_TYPE, DEVICE> device_ww2, device_sum, device_scratch, device_covariance;
-	MATRIX<unsigned int, DEVICE> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2;
+	MATRIX<unsigned int, DEVICE> device_labels, device_indices,device_ww_count, device_ret,device_ww_count2, device_argmax;
 	ORDERED_MATRIX<MATRIX_TYPE, DEVICE, COLUMN_MAJOR> device_ww, device_data;
 
 	int genome_index;

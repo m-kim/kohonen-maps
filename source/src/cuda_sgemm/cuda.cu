@@ -257,27 +257,27 @@ extern "C" void normalizeSum(float *a, unsigned int* ww_count)
 
 
 //Calculate argmax and sum the data vectors
-__global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
+__global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
 {
-	int size = 1024;
+	int size = IMAGE_MxN;
 	//using shared memory here will limit me...
 	//initialize with hard coded numbers because compile error on variable initialization
-	__shared__ int argmax[1024];
-	__shared__ float s_vec[1024];
+//	__shared__ int argmax[1024];
+//	__shared__ float s_vec[1024];
 
 	int blocksize = REDUCE_BLOCKSIZE;
 	int coalesce_num = size/blocksize;
 
-	for (int i=0; i<1024/REDUCE_BLOCKSIZE; i++){
+	for (int i=0; i<IMAGE_MxN/REDUCE_BLOCKSIZE; i++){
 		argmax[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
-		s_vec[threadIdx.x + i * blocksize] = vec[threadIdx.x + i * blocksize];
+//		s_vec[threadIdx.x + i * blocksize] = vec[threadIdx.x + i * blocksize];
 	}
 
 
 	// Large number ->32
 	for (int j=1; j < coalesce_num; j++){
 		if (threadIdx.x + blocksize * j < IMAGE_MxN){
-			argmax[threadIdx.x] = (s_vec[argmax[threadIdx.x]] > s_vec[argmax[j * blocksize + threadIdx.x]])?
+			argmax[threadIdx.x] = (vec[argmax[threadIdx.x]] > vec[argmax[j * blocksize + threadIdx.x]])?
 						argmax[threadIdx.x]:argmax[j * blocksize + threadIdx.x];
 		}
 	}
@@ -288,7 +288,7 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float 
 		blocksize = blocksize/2;
 
 		if (threadIdx.x < blocksize){
-			argmax[threadIdx.x] = s_vec[ argmax[blocksize +threadIdx.x]] < s_vec[argmax[threadIdx.x]]? argmax[threadIdx.x]:(argmax[blocksize+threadIdx.x]);
+			argmax[threadIdx.x] = vec[ argmax[blocksize +threadIdx.x]] < vec[argmax[threadIdx.x]]? argmax[threadIdx.x]:(argmax[blocksize+threadIdx.x]);
 		}
 	}
 	__syncthreads();
@@ -301,9 +301,9 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float 
 		ww_sum[ argmax[0] *device_vector_size[0] + threadIdx.x] += data[index * device_vector_size[0] + threadIdx.x];
 }
 
-extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index)
+extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
 {
-	dev_reduce<<<1,REDUCE_BLOCKSIZE>>>(ret,indices,ww_sum, vec,data, index);
+	dev_reduce<<<1,REDUCE_BLOCKSIZE>>>(ret,indices,ww_sum, vec,data, argmax, index);
 }
 
 __global__ void dev_buildImage(uint *im, uint *labels, uint *indices)
@@ -396,9 +396,9 @@ __global__ void dev_expandConstantImage(uint *im, const uint *ret)
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int i=0; i<16; i++){
-		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = constant_color[ret[y * IMAGE_M + x]];
+	for (int i=0; i<512/IMAGE_M; i++){
+		for (int j=0; j<512/IMAGE_N; j++){
+			im[(y * 512/IMAGE_M + j) * 512 + x * 512/IMAGE_M + i] = constant_color[ret[y * IMAGE_M + x]];
 		}
 	}
 }

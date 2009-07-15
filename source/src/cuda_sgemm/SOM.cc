@@ -12,7 +12,7 @@ extern "C" void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2);
 extern "C" void safeMemset(void *ptr, char value, unsigned int size);
 extern "C" void buildImage(uint *im, uint *labels, uint *indices);
 extern "C" void expandConstantImage(uint *im, const uint *ret);
-extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, int index);
+extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index);
 extern "C" void cuda_updateWeights(float *ww, float *avg_weight, float alpha);
 extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
 extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
@@ -149,6 +149,10 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 	cutilSafeCall(cudaMalloc((void**)&device_covariance.data, sizeof(float) * device_covariance.row*device_covariance.col));
 	cutilSafeCall(cudaMemset(device_covariance.data, 0, sizeof(float) *  device_covariance.row*device_covariance.col));
 
+	device_argmax.row = IMAGE_MxN;
+	device_argmax.col = 1;
+    cutilSafeCall(cudaMalloc((void**)&device_argmax.data, sizeof(int) * device_argmax.row * device_argmax.col));
+	cutilSafeCall(cudaMemset(device_argmax.data, 0, sizeof(int) * device_argmax.row * device_argmax.col));
 
     mean(device_data.data, device_scratch.data);
     cov(device_data.data, device_covariance.data, device_scratch.data);
@@ -202,7 +206,7 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
 			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
 
 		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
-    	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data, i);
+    	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, i);
     	cudaThreadSynchronize();
     	lasterror = cudaGetLastError();
     	if (lasterror)
