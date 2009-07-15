@@ -57,6 +57,7 @@ void SOM::updateWeights()
 
     prepSum(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	prepSum2(device_ww.data, device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
+	device_ww_count.print();
 	normalizeSum(device_sum.data, device_ww_count.data);
 	cuda_updateWeights(device_ww.data, device_sum.data, host_alpha[0]);
 }
@@ -86,12 +87,12 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 	cutilSafeCall(cudaMalloc((void**)&device_labels.data, sizeof(uint) * data.row));
 	cutilSafeCall(cudaMemcpy(device_labels.data, labels, sizeof(uint) * data.row, cudaMemcpyHostToDevice));
 
-	device_ww_count.row = 1024;
+	device_ww_count.row = IMAGE_MxN;
 	device_ww_count.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * device_ww_count.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
 
-	device_ww_count2.row = 1024;
+	device_ww_count2.row = IMAGE_MxN;
 	device_ww_count2.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
