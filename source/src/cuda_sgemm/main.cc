@@ -394,7 +394,6 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, 
 		}
 	}
 
-	printf("row: %d\n",row);
 	file.close();
 	return row;
 }
