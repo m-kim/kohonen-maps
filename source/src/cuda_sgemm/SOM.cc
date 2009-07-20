@@ -36,6 +36,8 @@ SOM::SOM()
 	counter = 0;
 
 	EXPANSION = 4;
+
+	SAVE_FILES = 0;
 }
 void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
 {
@@ -227,7 +229,6 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
     buildImage(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
     											device_labels.data,device_indices.data);
 
-
     if (RUN_DISPLAY){
         expandConstantImage(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
         //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
@@ -236,7 +237,7 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
         //	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
         //	generateSplitImage(genome_index, device_split_pbo);
     }
-    else{
+    if (SAVE_FILES){
     	std::ofstream file;
     	std::stringstream tmp;
     	tmp << CONFIG_PATH << "indices" << counter;

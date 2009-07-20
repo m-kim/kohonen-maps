@@ -41,6 +41,7 @@ public:
 	int host_T;
 	int DEBUG_PRINT;
 	int RUN_CYCLE;
+	int SAVE_FILES;
 	float host_alpha[2];
 	int host_r, host_beta[2];
 	int RUN_DISPLAY;

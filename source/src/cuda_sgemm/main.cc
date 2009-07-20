@@ -328,6 +328,9 @@ void readConfig()
 		else if (str.find("RUN_DISPLAY") != std::string::npos){
 			som.RUN_DISPLAY = atoi(tok(1).c_str());
 		}
+		else if (str.find("SAVE_FILES") != std::string::npos){
+			som.SAVE_FILES = atoi(tok(1).c_str());
+		}
 		else if (str.find("DATA_PATH") != std::string::npos){
 			som.DATA_PATH = tok(1);
 		}
@@ -357,7 +360,9 @@ int getLineCount(std::string name)
 		exit(-1);
 	}
 	while (getline(file,str))
-		line_count++;
+		if (isdigit(str.c_str()[0])){
+			line_count++;
+		}
 	file.close();
 	return line_count;
 }
@@ -393,6 +398,7 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, 
 			row++;
 		}
 	}
+
 
 	file.close();
 	return row;
@@ -455,7 +461,6 @@ int main( int argc, char **argv )
 	std::ifstream file;
 	char filename[100];
 	std::string str;
-	int row = 0;
 	int line_count = 0;
 	line_count += getLineCount("anoGAm1-100k.fa");
 	line_count += getLineCount("cb3-100k.fa");
@@ -473,6 +478,7 @@ int main( int argc, char **argv )
 	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);	labels = (uint*)malloc(sizeof(uint) * x.row);
 	som.DATA_SIZE = line_count;
 
+	int row = 0;
 	row += getFile("anoGAm1-100k.fa", x, labels, 0, 0);
 	row += getFile("cb3-100k.fa", x, labels, row, 1);
 	row += getFile("ce2-100k.fa", x, labels, row, 2);
@@ -482,9 +488,11 @@ int main( int argc, char **argv )
 	row += getFile("fr2-100k.fa", x, labels, row, 6);
 	row += getFile("tetnig1-100k.fa", x, labels, row, 7);
 	row += getFile("ci1-100k.fa", x, labels, row, 8);
+
+	if (som.DEBUG_PRINT)
+		printf("%d %d\n", row, line_count);
 //	row += getFile("danrer3-100k.fa", x, labels, row, 9);
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
-
 
 //	getFile(som.DATA_FILE, x, labels, 0,0);
 
