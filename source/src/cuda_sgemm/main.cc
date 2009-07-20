@@ -444,8 +444,6 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, 
 
 int main( int argc, char **argv )
 {
-
-
 	readConfig();
 	if (som.RUN_DISPLAY)
 		initGL(argc,argv);
@@ -464,7 +462,6 @@ int main( int argc, char **argv )
 	line_count += getLineCount("ce2-100k.fa");
 	line_count += getLineCount("dm2-100k.fa");
 	line_count += getLineCount("dp3-100k.fa");
-	line_count += getLineCount("galgal2-100k.fa");
 	line_count += getLineCount("galgal2-100k.fa");
 	line_count += getLineCount("fr2-100k.fa");
 	line_count += getLineCount("tetnig1-100k.fa");
