@@ -14,9 +14,9 @@ public:
 			unsigned int *device_regular_pbo,
 			uint *device_split_pbo,
 			unsigned char *device_log_pbo);
-	int runCuda(unsigned int *device_regular_pbo,
-			unsigned int *device_split_pbo,
-			unsigned char *device_log_pbo);
+	int runCuda();
+	void increaseLuminance();
+	void decreaseLuminance();
 
 	void updateConvergence();
 
@@ -49,6 +49,10 @@ public:
 	std::string DATA_FILE;
 	int counter;
 	int EXPANSION;
+
+	unsigned int *device_regular_pbo;
+	unsigned int *device_split_pbo;
+	unsigned char *device_log_pbo;
 };
 
 #endif

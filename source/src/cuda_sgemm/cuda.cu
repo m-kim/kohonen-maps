@@ -147,6 +147,7 @@ __global__ void dev_prepSum(float *a, float *b, uint *ww_count, uint *count, int
 		}
 	}
 }
+
 __global__ void dev_mean(const MATRIX_TYPE *data, MATRIX_TYPE *ret)
 {
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
@@ -380,16 +381,57 @@ extern "C" void expandSplitImage(uint *im, const uint *ret)
 	dev_expandSplitImage<<<grid,block>>>(im, ret);
 }
 
-__global__ void expandLogImage(unsigned char *im, const uint *ret)
+__global__ void dev_increaseLuminance(unsigned char *im)
 {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int i=0; i<16; i++){
-		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = 10 * logf(ret[y * IMAGE_M + x]);
+	if (im[y * 512 + x] > 0)
+		im[y * 512 + x] += 1;
+}
+
+extern "C" void cuda_increaseLuminance(unsigned char *im)
+{
+	dim3 grid(32,32);
+	dim3 block(16,16);
+	dev_increaseLuminance<<<grid, block>>>(im);
+}
+
+
+
+__global__ void dev_decreaseLuminance(unsigned char *im)
+{
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	if (im[y * 512 + x] > 0)
+		im[y * 512 + x] -= 1;
+}
+
+extern "C" void cuda_decreaseLuminance(unsigned char *im)
+{
+	dim3 grid(32,32);
+	dim3 block(16,16);
+	dev_increaseLuminance<<<grid, block>>>(im);
+}
+
+__global__ void dev_expandLogImage(unsigned char *im, const uint *ret)
+{
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	for (int i=0; i<512/IMAGE_M; i++){
+		for (int j=0; j<512/IMAGE_M; j++){
+			im[(y * 512/IMAGE_M + j) * 512 + x * 512/IMAGE_M + i] = ret[y * IMAGE_M + x];
 		}
 	}
+}
+
+extern "C" void expandLogImage(unsigned char *im, const uint *ret)
+{
+	dim3 block(16,16);
+	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dev_expandLogImage<<<grid, block>>>(im,ret);
 }
 __global__ void dev_expandConstantImage(uint *im, const uint *ret)
 {
@@ -449,7 +491,7 @@ __global__ void dev_calcSum(MATRIX_TYPE *ww_sum, MATRIX_TYPE *data, unsigned int
 
 extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data,unsigned int *indices)
 {
-	dev_findWeightVector<<<2627/32, 32>>>(weight, data, indices);
+	dev_findWeightVector<<<22436/32, 32>>>(weight, data, indices);
 
 	cudaThreadSynchronize();
 

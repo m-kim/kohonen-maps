@@ -52,7 +52,7 @@ void display()
 	if (som.RUN_CYCLE && som.counter < som.host_T){
 		som.counter++;
 		som.updateWeights();
-		som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+		som.runCuda();
 		som.updateConvergence();
 	}
 
@@ -119,6 +119,11 @@ void display()
 void keyboard(unsigned char key, int /*x*/, int /*y*/)
 {
     switch(key) {
+    case '+':
+		som.increaseLuminance();
+    	break;
+    case '-':
+    	som.decreaseLuminance();
     case 'n':
     case 'N':
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
@@ -126,7 +131,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
        	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 
         som.updateWeights();
-        som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+        som.runCuda();
         som.updateConvergence();
        	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
        	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
@@ -598,7 +603,7 @@ int main( int argc, char **argv )
 	if (som.DEBUG_PRINT)
 		printf("Setup time %f\n\n", time);
 
-	som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+	som.runCuda();
 
 	if (som.RUN_DISPLAY){
 		cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
@@ -612,7 +617,7 @@ int main( int argc, char **argv )
 		while( som.counter < som.host_T){
 			som.counter++;
 			som.updateWeights();
-			som.runCuda((uint*)d_regular_output, d_split_output, d_log_output);
+			som.runCuda();
 			som.updateConvergence();
 		}
 		cutilSafeCall(cudaFree(d_regular_output));

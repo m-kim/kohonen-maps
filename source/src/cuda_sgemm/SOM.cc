@@ -18,6 +18,9 @@ extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
 extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
 extern "C" void cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val);
 extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data, unsigned int *indices);
+extern "C" void expandLogImage(unsigned char *im, const uint *ret);
+extern "C" void cuda_increaseLuminance(unsigned char *im);
+extern "C" void cuda_decreaseLuminance(unsigned char *im);
 
 SOM::SOM()
 {
@@ -69,10 +72,14 @@ void SOM::updateWeights()
 void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 		ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &data,
 		uint *labels,
-		unsigned int *device_regular_pbo,
-		uint *device_split_pbo,
-		unsigned char *device_log_pbo)
+		unsigned int *_device_regular_pbo,
+		uint *_device_split_pbo,
+		unsigned char *_device_log_pbo)
 {
+	this->device_regular_pbo = _device_regular_pbo;
+	this->device_split_pbo = _device_split_pbo;
+	this->device_log_pbo = _device_log_pbo;
+
 
 	host_beta[0] = BETA;
 	host_beta[1] = BETA;
@@ -165,7 +172,7 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
     updateConvergence();
 }
 
-int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pbo, unsigned char *device_log_pbo)
+int SOM::runCuda()
 {
 	if (DEBUG_PRINT)
 		printf("r: %d alpha %f: beta %d\n", host_r, host_alpha[0], host_beta[0]);
@@ -191,33 +198,32 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
 
     cutilSafeCall(cudaMemcpy(device_scratch.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-//    for (int i=0; i<DATA_SIZE; i++){
-//    	if ( !(i % 10000) && DEBUG_PRINT)
-//    		printf("%d\n",i);
-//	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_scratch.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
-//		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
-//				device_data.data + i * device_data.col,
-//				1,
-//				-1,
-//				device_ww2.data,
-//				1);
-//		cudaThreadSynchronize();
-//
-//		cudaError_t lasterror = cudaGetLastError();
-//		if (lasterror)
-//			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
-//
-//		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
-//    	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, i);
-//    	cudaThreadSynchronize();
-//    	lasterror = cudaGetLastError();
-//    	if (lasterror)
-//        	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
-//    }
-//    device_indices.print();
+    for (int i=0; i<DATA_SIZE; i++){
+    	if ( !(i % 10000) && DEBUG_PRINT)
+    		printf("%d\n",i);
+	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_scratch.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
+		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
+				device_data.data + i * device_data.col,
+				1,
+				-1,
+				device_ww2.data,
+				1);
+		cudaThreadSynchronize();
 
-    findWeightVector(device_sum.data, device_ww.data, device_data.data,device_indices.data);
-	device_indices.print();
+		cudaError_t lasterror = cudaGetLastError();
+		if (lasterror)
+			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
+
+		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
+    	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, i);
+    	cudaThreadSynchronize();
+    	lasterror = cudaGetLastError();
+    	if (lasterror)
+        	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
+    }
+
+//    findWeightVector(device_sum.data, device_ww.data, device_data.data,device_indices.data);
+//	device_indices.print();
     cublasShutdown();
 
 	cutStopTimer(timer);
@@ -237,7 +243,8 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
         //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
         //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
         //
-        //	expandLogImage<<<grid,block>>>(device_log_pbo, device_ww_count.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+
+		expandLogImage(device_log_pbo, device_ww_count.data);
         //	generateSplitImage(genome_index, device_split_pbo);
     }
     if (SAVE_FILES){
@@ -266,6 +273,15 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
    	return EXIT_SUCCESS;
 }
 
+void SOM::increaseLuminance()
+{
+	cuda_increaseLuminance(device_log_pbo);
+}
+
+void SOM::decreaseLuminance()
+{
+	cuda_decreaseLuminance(device_log_pbo);
+}
 int make_data(int n,int S, int F,float weight,
 		MATRIX<MATRIX_TYPE, HOST> &pc1,
 		MATRIX<MATRIX_TYPE, HOST> &pc2,
@@ -282,5 +298,4 @@ int make_data(int n,int S, int F,float weight,
 			}
 		}
 	}
-
 }
