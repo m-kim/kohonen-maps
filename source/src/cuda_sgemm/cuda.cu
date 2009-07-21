@@ -256,7 +256,6 @@ extern "C" void normalizeSum(float *a, unsigned int* ww_count)
 	cudaThreadSynchronize();
 }
 
-
 //Calculate argmax and sum the data vectors
 __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
 {
@@ -412,4 +411,48 @@ extern "C" void expandConstantImage(uint *im, const uint *ret)
 
 }
 
+__global__ void dev_findWeightVector(MATRIX_TYPE *weight, MATRIX_TYPE *data, unsigned int *indices)
+{
+	int index = threadIdx.x + blockDim.x * blockIdx.x;
+	if (index < device_data_size[0]){
+		//__shared__ MATRIX_TYPE s_data[IMAGE_MxN];
 
+//		for (int i=0; i<device_vector_size[0]; i++){
+//			s_data[i] = data[index * device_vector_size[0] + i];
+//		}
+
+		int argmax = 0;
+		MATRIX_TYPE max = -1000000;
+		for (int i=0; i<IMAGE_MxN; i++){
+			MATRIX_TYPE sum = 0;
+
+			for (int j=0; j<device_vector_size[0]; j++){
+				sum += 2 * data[index * device_vector_size[0] + j] * weight[i * device_vector_size[0] + j] -
+												weight[i * device_vector_size[0] + j] * weight[ i * device_vector_size[0] + j];
+			}
+			if (sum > max){
+				max = sum;
+				argmax = i;
+			}
+		}
+		indices[index] = argmax;
+	}
+}
+
+__global__ void dev_calcSum(MATRIX_TYPE *ww_sum, MATRIX_TYPE *data, unsigned int *indices)
+{
+	int index = threadIdx.x + blockIdx.x * blockDim.x;
+	for (int i=0; i<device_vector_size[0]; i++){
+		ww_sum[ indices[index] *device_vector_size[0] + i] += data[indices[index] * device_vector_size[0] + i];
+	}
+}
+
+extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data,unsigned int *indices)
+{
+	dev_findWeightVector<<<2627/32, 32>>>(weight, data, indices);
+
+	cudaThreadSynchronize();
+
+//	dev_calcSum<<<IMAGE_MxN/32, 32>>>(ww_sum, data, indices);
+//	cudaThreadSynchronize();
+}

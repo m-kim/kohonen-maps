@@ -17,6 +17,7 @@ extern "C" void cuda_updateWeights(float *ww, float *avg_weight, float alpha);
 extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
 extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
 extern "C" void cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val);
+extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data, unsigned int *indices);
 
 SOM::SOM()
 {
@@ -190,31 +191,33 @@ int SOM::runCuda(unsigned int *device_regular_pbo, unsigned int *device_split_pb
 
     cutilSafeCall(cudaMemcpy(device_scratch.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
-    for (int i=0; i<DATA_SIZE; i++){
-    	if ( !(i % 10000) && DEBUG_PRINT)
-    		printf("%d\n",i);
-	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_scratch.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
-		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
-				device_data.data + i * device_data.col,
-				1,
-				-1,
-				device_ww2.data,
-				1);
-		cudaThreadSynchronize();
+//    for (int i=0; i<DATA_SIZE; i++){
+//    	if ( !(i % 10000) && DEBUG_PRINT)
+//    		printf("%d\n",i);
+//	    cutilSafeCall(cudaMemcpy(device_ww2.data, device_scratch.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
+//		cublasSgemv('T', device_ww.row, device_ww.col, 2, device_ww.data, device_ww.row,
+//				device_data.data + i * device_data.col,
+//				1,
+//				-1,
+//				device_ww2.data,
+//				1);
+//		cudaThreadSynchronize();
+//
+//		cudaError_t lasterror = cudaGetLastError();
+//		if (lasterror)
+//			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
+//
+//		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
+//    	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, i);
+//    	cudaThreadSynchronize();
+//    	lasterror = cudaGetLastError();
+//    	if (lasterror)
+//        	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
+//    }
+//    device_indices.print();
 
-		cudaError_t lasterror = cudaGetLastError();
-		if (lasterror)
-			printf("sgemv: %s\n", cudaGetErrorString(lasterror));
-
-		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
-    	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, i);
-    	cudaThreadSynchronize();
-    	lasterror = cudaGetLastError();
-    	if (lasterror)
-        	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
-    }
-
-
+    findWeightVector(device_sum.data, device_ww.data, device_data.data,device_indices.data);
+	device_indices.print();
     cublasShutdown();
 
 	cutStopTimer(timer);
