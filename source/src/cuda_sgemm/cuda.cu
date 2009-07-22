@@ -422,7 +422,7 @@ __global__ void dev_expandLogImage(unsigned int *im, const uint *ret)
 
 	for (int i=0; i<512/IMAGE_X; i++){
 		for (int j=0; j<512/IMAGE_Y; j++){
-			im[(y * 512/IMAGE_Y + j) * 512 + x * 512/IMAGE_X + i] = LUMINANCE_ADJUSTMENT * ret[y + IMAGE_Y * x];
+			im[(y * 512/IMAGE_Y + j) * 512 + x * 512/IMAGE_X + i] = LUMINANCE_ADJUSTMENT * ret[y * IMAGE_Y + x];
 		}
 	}
 }
@@ -440,7 +440,7 @@ __global__ void dev_expandConstantImage(uint *im, const uint *ret)
 
 	for (int i=0; i<512/IMAGE_X; i++){
 		for (int j=0; j<512/IMAGE_X; j++){
-			im[(col * 512/IMAGE_X + j) * 512 + row * 512/IMAGE_X + i] = constant_color[ret[col + IMAGE_Y * row]];
+			im[(col * 512/IMAGE_X + j) * 512 + row * 512/IMAGE_X + i] = constant_color[ret[col * IMAGE_Y + row]];
 		}
 	}
 }

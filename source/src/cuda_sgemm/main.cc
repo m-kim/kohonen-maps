@@ -574,7 +574,7 @@ int main( int argc, char **argv )
 	for (int i=0; i<IMAGE_Y; i++){
 		for (int j=0; j<IMAGE_X; j++){
 			for (int k=0; k<som.VECTOR_SIZE; k++){
-				ww(k,i + IMAGE_Y * j) = dm[k] + (b1[k] * (i - IMAGE_Y/2) + b2[k] * (j-IMAGE_X/2));
+				ww(k,i * IMAGE_X + j) = dm[k] + (b1[k] * (i - IMAGE_Y/2) + b2[k] * (j-IMAGE_X/2));
 			}
 		}
 	}

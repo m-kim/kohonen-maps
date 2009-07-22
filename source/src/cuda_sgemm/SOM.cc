@@ -196,6 +196,7 @@ int SOM::runCuda()
     //this is related to IMAGE_MXN
     calc_ww2(device_ww.data,device_ww2.data);
 
+
     cutilSafeCall(cudaMemcpy(device_scratch.data, device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col, cudaMemcpyDeviceToDevice));
     cublasInit();
     for (int i=0; i<DATA_SIZE; i++){
