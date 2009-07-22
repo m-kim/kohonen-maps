@@ -13,7 +13,7 @@ public:
 			uint *labels,
 			unsigned int *device_regular_pbo,
 			uint *device_split_pbo,
-			unsigned char *device_log_pbo);
+			unsigned int *device_log_pbo);
 	int runCuda();
 	void increaseLuminance();
 	void decreaseLuminance();
@@ -52,7 +52,7 @@ public:
 
 	unsigned int *device_regular_pbo;
 	unsigned int *device_split_pbo;
-	unsigned char *device_log_pbo;
+	unsigned int *device_log_pbo;
 };
 
 #endif

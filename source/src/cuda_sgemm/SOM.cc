@@ -18,9 +18,9 @@ extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
 extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
 extern "C" void cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val);
 extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data, unsigned int *indices);
-extern "C" void expandLogImage(unsigned char *im, const uint *ret);
-extern "C" void cuda_increaseLuminance(unsigned char *im);
-extern "C" void cuda_decreaseLuminance(unsigned char *im);
+extern "C" void expandLogImage(unsigned int *im, const uint *ret);
+extern "C" void cuda_increaseLuminance(unsigned int *im);
+extern "C" void cuda_decreaseLuminance(unsigned int *im);
 
 SOM::SOM()
 {
@@ -46,8 +46,8 @@ SOM::SOM()
 void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
-	expandSplitImage(device_split_pbo, device_ret.data + g_index * IMAGE_MxN);
+	dim3 grid(IMAGE_X/16,IMAGE_Y/16);
+	expandSplitImage(device_split_pbo, device_ret.data + g_index * IMAGE_XxY);
 }
 
 void SOM::updateConvergence()
@@ -60,7 +60,7 @@ void SOM::updateConvergence()
 void SOM::updateWeights()
 {
     //update_weights
-    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
+    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_XxY * VECTOR_SIZE));
 
     prepSum(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
 	prepSum2(device_sum.data, device_scratch.data, device_ww_count.data, device_ww_count2.data, host_beta[0]);
@@ -74,7 +74,7 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 		uint *labels,
 		unsigned int *_device_regular_pbo,
 		uint *_device_split_pbo,
-		unsigned char *_device_log_pbo)
+		unsigned int *_device_log_pbo)
 {
 	this->device_regular_pbo = _device_regular_pbo;
 	this->device_split_pbo = _device_split_pbo;
@@ -98,12 +98,12 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 	cutilSafeCall(cudaMalloc((void**)&device_labels.data, sizeof(uint) * data.row));
 	cutilSafeCall(cudaMemcpy(device_labels.data, labels, sizeof(uint) * data.row, cudaMemcpyHostToDevice));
 
-	device_ww_count.row = IMAGE_MxN;
+	device_ww_count.row = IMAGE_XxY;
 	device_ww_count.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count.data, sizeof(unsigned int) * device_ww_count.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
 
-	device_ww_count2.row = IMAGE_MxN;
+	device_ww_count2.row = IMAGE_XxY;
 	device_ww_count2.col = 1;
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
@@ -127,8 +127,8 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
     cutilSafeCall(cudaMalloc((void**)&device_ww.data, sizeof(float) * ww.row * ww.col));
     cutilSafeCall(cudaMemcpy(device_ww.data, ww.data, sizeof(float) * ww.row * ww.col, cudaMemcpyHostToDevice));
 
-	device_ww2.row = IMAGE_N;
-	device_ww2.col = IMAGE_M;
+	device_ww2.row = IMAGE_Y;
+	device_ww2.col = IMAGE_X;
 	if (DEBUG_PRINT)
     	printf("setup matrix ww2 %d %d\n", device_ww2.row, device_ww2.col);
     cutilSafeCall(cudaMalloc((void**)&device_ww2.data, sizeof(float) * device_ww2.row * device_ww2.col));
@@ -142,9 +142,9 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
     cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col ));
 
 	if(DEBUG_PRINT)
-    	printf("setup matrix scratch %d %d\n", IMAGE_MxN, VECTOR_SIZE);
-    cutilSafeCall(cudaMalloc((void**)&device_scratch.data, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
-    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_MxN * VECTOR_SIZE));
+    	printf("setup matrix scratch %d %d\n", IMAGE_XxY, VECTOR_SIZE);
+    cutilSafeCall(cudaMalloc((void**)&device_scratch.data, sizeof(float) * IMAGE_XxY * VECTOR_SIZE));
+    cutilSafeCall(cudaMemset(device_scratch.data, 0, sizeof(float) * IMAGE_XxY * VECTOR_SIZE));
 
 
     device_data.row = data.row;
@@ -161,7 +161,7 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 	cutilSafeCall(cudaMalloc((void**)&device_covariance.data, sizeof(float) * device_covariance.row*device_covariance.col));
 	cutilSafeCall(cudaMemset(device_covariance.data, 0, sizeof(float) *  device_covariance.row*device_covariance.col));
 
-	device_argmax.row = IMAGE_MxN;
+	device_argmax.row = IMAGE_XxY;
 	device_argmax.col = 1;
     cutilSafeCall(cudaMalloc((void**)&device_argmax.data, sizeof(int) * device_argmax.row * device_argmax.col));
 	cutilSafeCall(cudaMemset(device_argmax.data, 0, sizeof(int) * device_argmax.row * device_argmax.col));
@@ -233,13 +233,13 @@ int SOM::runCuda()
     	printf("Run time %f\n\n", time);
     cutResetTimer(timer);
 
-    cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN, 0, sizeof(int) * IMAGE_MxN);
-    cudaMemset(device_ret.data, 0, GENOMIC_DATA_COUNT * sizeof(int) * IMAGE_MxN);
-    buildImage(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN,
+    cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_XxY, 0, sizeof(int) * IMAGE_XxY);
+    cudaMemset(device_ret.data, 0, GENOMIC_DATA_COUNT * sizeof(int) * IMAGE_XxY);
+    buildImage(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_XxY,
     											device_labels.data,device_indices.data);
 
     if (RUN_DISPLAY){
-        expandConstantImage(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_MxN);
+        expandConstantImage(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_XxY);
         //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
         //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
         //

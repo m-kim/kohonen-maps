@@ -105,7 +105,7 @@ __global__ void dev_calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 
 extern "C" void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 {
-	dev_calc_ww2<<<IMAGE_MxN/128,128>>>(ww,ww2);
+	dev_calc_ww2<<<IMAGE_XxY/128,128>>>(ww,ww2);
     cudaThreadSynchronize();
 
 }
@@ -134,16 +134,16 @@ __global__ void dev_prepSum(float *a, float *b, uint *ww_count, uint *count, int
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
-	int index = row + IMAGE_M * col;
-	if (col < IMAGE_M){
+	int index = row + IMAGE_Y * col;
+	if (col < IMAGE_X){
 		int imin = max(row - _beta, 0);
-		int imax = min(row + _beta + 1, IMAGE_N);
+		int imax = min(row + _beta + 1, IMAGE_Y);
 
 		for (int x=imin; x<imax; x++){
 			for (int k=0; k<device_vector_size[0]; k++){
-				b[k + device_vector_size[0] * index] += a[k + device_vector_size[0] * (x + IMAGE_M * col)];
+				b[k + device_vector_size[0] * index] += a[k + device_vector_size[0] * (x + IMAGE_Y * col)];
 			}
-			count[index] += ww_count[x + IMAGE_M * col];
+			count[index] += ww_count[x + IMAGE_Y * col];
 		}
 	}
 }
@@ -172,7 +172,7 @@ extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret)
 extern "C" void prepSum(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_prepSum<<<grid,block>>>(a, b, ww_count, count, _beta);
 	cudaThreadSynchronize();
 }
@@ -181,25 +181,25 @@ __global__ void dev_prepSum2(float *a, float *b, uint *ww_count, uint *count, in
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
-	int index = row + IMAGE_M * col;
+	int index = row + IMAGE_Y * col;
 
 	//	__shared__ float s_ww[IMAGE_N * IMAGE_M];
 
-	if (col < IMAGE_M){
+	if (col < IMAGE_X){
 		int imin = max(col - _beta,0);
-		int imax = min(col + _beta + 1,IMAGE_N);
+		int imax = min(col + _beta + 1,IMAGE_X);
 		for (int x=imin; x<imax; x++){
 			for (int k=0; k<device_vector_size[0]; k++){
-				a[k + device_vector_size[0] * index ] += b[k + device_vector_size[0] * ( row + IMAGE_M * x) ];
+				a[k + device_vector_size[0] * index ] += b[k + device_vector_size[0] * ( row + IMAGE_Y * x) ];
 			}
-			ww_count[index] += count[row + IMAGE_M * x];
+			ww_count[index] += count[row + IMAGE_Y * x];
 		}
 	}
 }
 extern "C" void prepSum2(float *a, float *b, uint *ww_count, uint *count, int _beta)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_prepSum2<<<grid,block>>>(a, b, ww_count, count, _beta);
 	cudaThreadSynchronize();
 }
@@ -208,7 +208,7 @@ __global__ void dev_updateWeights(float *ww, float *avg_weight, float alpha)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
-	int index =  device_vector_size[0] * (row + IMAGE_M * col);
+	int index =  device_vector_size[0] * (row + IMAGE_Y * col);
 	for (int i=0; i<device_vector_size[0]; i++){
 		ww[i + index] = ww[i + index] + alpha * (avg_weight[i + index] - ww[i + index]);
 	}
@@ -230,7 +230,7 @@ __global__ void dev_updateWeights(float *ww, float *avg_weight, float alpha)
 extern "C" void cuda_updateWeights(float *ww, float *avg_weight, float alpha)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_updateWeights<<<grid,block>>>(ww, avg_weight, alpha);
 	cudaThreadSynchronize();
 }
@@ -243,16 +243,16 @@ __global__ void dev_normalizeSum(float *a, unsigned int* ww_count)
 	for (int k=0; k<device_vector_size[0]; k++){
 		//cc_sum(k, i + IMAGE_M * j) = argh(k, i + IMAGE_M * j)/count(j,i);
 
-		if (ww_count[row + IMAGE_M * col] == 0)
-			a[k + device_vector_size[0] * ( row + IMAGE_M * col)] = 0;
+		if (ww_count[row + IMAGE_Y * col] == 0)
+			a[k + device_vector_size[0] * ( row + IMAGE_Y * col)] = 0;
 		else
-			a[k + device_vector_size[0] * ( row + IMAGE_M * col)] = a[k + device_vector_size[0] * (row + IMAGE_M * col)]/(float)ww_count[row + IMAGE_M * col];
+			a[k + device_vector_size[0] * ( row + IMAGE_Y * col)] = a[k + device_vector_size[0] * (row + IMAGE_Y * col)]/(float)ww_count[row + IMAGE_Y * col];
 	}
 }
 extern "C" void normalizeSum(float *a, unsigned int* ww_count)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_normalizeSum<<<grid,block>>>(a, ww_count);
 	cudaThreadSynchronize();
 }
@@ -260,7 +260,7 @@ extern "C" void normalizeSum(float *a, unsigned int* ww_count)
 //Calculate argmax and sum the data vectors
 __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
 {
-	int size = IMAGE_MxN;
+	int size = IMAGE_XxY;
 	//using shared memory here will limit me...
 	//initialize with hard coded numbers because compile error on variable initialization
 //	__shared__ int argmax[1024];
@@ -269,7 +269,7 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float 
 	int blocksize = REDUCE_BLOCKSIZE;
 	int coalesce_num = size/blocksize;
 
-	for (int i=0; i<IMAGE_MxN/REDUCE_BLOCKSIZE; i++){
+	for (int i=0; i<IMAGE_XxY/REDUCE_BLOCKSIZE; i++){
 		argmax[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
 //		s_vec[threadIdx.x + i * blocksize] = vec[threadIdx.x + i * blocksize];
 	}
@@ -277,7 +277,7 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float 
 
 	// Large number ->32
 	for (int j=1; j < coalesce_num; j++){
-		if (threadIdx.x + blocksize * j < IMAGE_MxN){
+		if (threadIdx.x + blocksize * j < IMAGE_XxY){
 			argmax[threadIdx.x] = (vec[argmax[threadIdx.x]] > vec[argmax[j * blocksize + threadIdx.x]])?
 						argmax[threadIdx.x]:argmax[j * blocksize + threadIdx.x];
 		}
@@ -311,7 +311,7 @@ __global__ void dev_buildImage(uint *im, uint *labels, uint *indices)
 {
 	uint row = threadIdx.x + blockDim.x * blockIdx.x;
 	uint col = threadIdx.y + blockDim.y * blockIdx.y;
-	uint index = row + IMAGE_M * col;
+	uint index = row + IMAGE_Y * col;
 
 	im[index] = LABEL_COUNT + 2;
 	for (int i=0; i<device_data_size[0]; i++){
@@ -323,7 +323,7 @@ __global__ void dev_buildImage(uint *im, uint *labels, uint *indices)
 extern "C" void buildImage(uint *im, uint *labels, uint *indices)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 
     dev_buildImage<<<grid, block>>>(im,labels, indices);
     cudaThreadSynchronize();
@@ -333,7 +333,7 @@ __global__ void buildSplitImage(uint *im, uint *labels, uint *indices, int g_ind
 {
 	uint tidx = threadIdx.x + blockDim.x * blockIdx.x;
 	uint tidy = threadIdx.y + blockDim.y * blockIdx.y;
-	uint index = tidx * IMAGE_N + tidy;
+	uint index = tidx * IMAGE_Y + tidy;
 
 	int genome[GENOMIC_DATA_COUNT];
 
@@ -368,7 +368,7 @@ __global__ void dev_expandSplitImage(uint *im, const uint *ret)
 
 	for (int i=0; i<16; i++){
 		for (int j=0; j<16; j++){
-			im[(y * 16 + j) * 512 + x * 16 + i] = LUMINANCE_ADJUSTMENT * ret[y * IMAGE_M + x];
+			im[(y * 16 + j) * 512 + x * 16 + i] = LUMINANCE_ADJUSTMENT * ret[y * IMAGE_X + x];
 		}
 	}
 }
@@ -376,12 +376,12 @@ __global__ void dev_expandSplitImage(uint *im, const uint *ret)
 extern "C" void expandSplitImage(uint *im, const uint *ret)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 
 	dev_expandSplitImage<<<grid,block>>>(im, ret);
 }
 
-__global__ void dev_increaseLuminance(unsigned char *im)
+__global__ void dev_increaseLuminance(unsigned int *im)
 {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -390,7 +390,7 @@ __global__ void dev_increaseLuminance(unsigned char *im)
 		im[y * 512 + x] += 1;
 }
 
-extern "C" void cuda_increaseLuminance(unsigned char *im)
+extern "C" void cuda_increaseLuminance(unsigned int *im)
 {
 	dim3 grid(32,32);
 	dim3 block(16,16);
@@ -399,7 +399,7 @@ extern "C" void cuda_increaseLuminance(unsigned char *im)
 
 
 
-__global__ void dev_decreaseLuminance(unsigned char *im)
+__global__ void dev_decreaseLuminance(unsigned int *im)
 {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -408,46 +408,46 @@ __global__ void dev_decreaseLuminance(unsigned char *im)
 		im[y * 512 + x] -= 1;
 }
 
-extern "C" void cuda_decreaseLuminance(unsigned char *im)
+extern "C" void cuda_decreaseLuminance(unsigned int *im)
 {
 	dim3 grid(32,32);
 	dim3 block(16,16);
 	dev_increaseLuminance<<<grid, block>>>(im);
 }
 
-__global__ void dev_expandLogImage(unsigned char *im, const uint *ret)
+__global__ void dev_expandLogImage(unsigned int *im, const uint *ret)
 {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int i=0; i<512/IMAGE_M; i++){
-		for (int j=0; j<512/IMAGE_M; j++){
-			im[(y * 512/IMAGE_M + j) * 512 + x * 512/IMAGE_M + i] = ret[y * IMAGE_M + x];
+	for (int i=0; i<512/IMAGE_X; i++){
+		for (int j=0; j<512/IMAGE_Y; j++){
+			im[(y * 512/IMAGE_Y + j) * 512 + x * 512/IMAGE_X + i] = LUMINANCE_ADJUSTMENT * ret[y + IMAGE_Y * x];
 		}
 	}
 }
 
-extern "C" void expandLogImage(unsigned char *im, const uint *ret)
+extern "C" void expandLogImage(unsigned int *im, const uint *ret)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_expandLogImage<<<grid, block>>>(im,ret);
 }
 __global__ void dev_expandConstantImage(uint *im, const uint *ret)
 {
-	int x = threadIdx.x + blockDim.x * blockIdx.x;
-	int y = threadIdx.y + blockDim.y * blockIdx.y;
+	int row = threadIdx.x + blockDim.x * blockIdx.x;
+	int col = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int i=0; i<512/IMAGE_M; i++){
-		for (int j=0; j<512/IMAGE_N; j++){
-			im[(y * 512/IMAGE_M + j) * 512 + x * 512/IMAGE_M + i] = constant_color[ret[y * IMAGE_M + x]];
+	for (int i=0; i<512/IMAGE_X; i++){
+		for (int j=0; j<512/IMAGE_X; j++){
+			im[(col * 512/IMAGE_X + j) * 512 + row * 512/IMAGE_X + i] = constant_color[ret[col + IMAGE_Y * row]];
 		}
 	}
 }
 extern "C" void expandConstantImage(uint *im, const uint *ret)
 {
 	dim3 block(16,16);
-	dim3 grid(IMAGE_M/16,IMAGE_N/16);
+	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 
 	dev_expandConstantImage<<<grid,block>>>(im,ret);
 
@@ -465,7 +465,7 @@ __global__ void dev_findWeightVector(MATRIX_TYPE *weight, MATRIX_TYPE *data, uns
 
 		int argmax = 0;
 		MATRIX_TYPE max = -1000000;
-		for (int i=0; i<IMAGE_MxN; i++){
+		for (int i=0; i<IMAGE_XxY; i++){
 			MATRIX_TYPE sum = 0;
 
 			for (int j=0; j<device_vector_size[0]; j++){

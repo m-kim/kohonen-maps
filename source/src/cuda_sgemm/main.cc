@@ -35,7 +35,7 @@ int split_som_window = 0, som_window = 0;
 float bin1, bin2;
 uint *d_split_output;
 uchar4 *d_regular_output;
-unsigned char *d_log_output;
+unsigned int *d_log_output;
 
 GLuint split_pbo = 0, log_pbo = 0;          // OpenGL pixel buffer object
 GLuint pbo = 0;
@@ -98,7 +98,7 @@ void display()
 	glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
 	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
 	glTexSubImage2D(GL_TEXTURE_TYPE,
-					0, 0, 0, width/2, height/2, GL_LUMINANCE, GL_UNSIGNED_BYTE, 0);
+					0, 0, 0, width/2, height/2, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
 	glEnable(GL_TEXTURE_TYPE);
 
 	// draw textured quad
@@ -225,7 +225,7 @@ void initLogPBO()
     // create pixel buffer object for display
     glGenBuffersARB(1, &log_pbo);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(unsigned char), 0, GL_STREAM_DRAW_ARB);
+    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(unsigned int), 0, GL_STREAM_DRAW_ARB);
     glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
     cutilSafeCall(cudaGLRegisterBufferObject(log_pbo));
@@ -236,7 +236,7 @@ void initLogPBO()
     }
     glGenTextures(1, &display_log_tex);
     glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
-    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_LUMINANCE, width/2, height/2, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_LUMINANCE, width/2, height/2, 0, GL_LUMINANCE, GL_UNSIGNED_INT, NULL);
     glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture  (GL_TEXTURE_TYPE, 0);
@@ -549,12 +549,12 @@ int main( int argc, char **argv )
 	//ummm...this is only if M is "None"
 	//M = int(N * std2 / std1);
 
-	bin1 = 2 * som.EXPANSION * std1 / IMAGE_N;
-	bin2 = 2 * som.EXPANSION * std2 / IMAGE_M;
+	bin1 = 2 * som.EXPANSION * std1 / IMAGE_Y;
+	bin2 = 2 * som.EXPANSION * std2 / IMAGE_X;
 
 	if (som.DEBUG_PRINT){
 		printf("Std dev: %f %f\n", std1,std2);
-		printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_M, IMAGE_N);
+		printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_X, IMAGE_Y);
 	}
 
 /*************************************************************************************
@@ -568,13 +568,13 @@ int main( int argc, char **argv )
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_MxN);
+	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_XxY);
 
 	//remember, mean0 = dm
-	for (int i=0; i<IMAGE_N; i++){
-		for (int j=0; j<IMAGE_M; j++){
+	for (int i=0; i<IMAGE_Y; i++){
+		for (int j=0; j<IMAGE_X; j++){
 			for (int k=0; k<som.VECTOR_SIZE; k++){
-				ww(k,i + IMAGE_M * j) = dm[k] + (b1[k] * (i - IMAGE_N/2) + b2[k] * (j-IMAGE_M/2));
+				ww(k,i + IMAGE_Y * j) = dm[k] + (b1[k] * (i - IMAGE_Y/2) + b2[k] * (j-IMAGE_X/2));
 			}
 		}
 	}
