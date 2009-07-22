@@ -420,9 +420,9 @@ __global__ void dev_expandLogImage(unsigned int *im, const uint *ret)
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int i=0; i<512/IMAGE_X; i++){
-		for (int j=0; j<512/IMAGE_Y; j++){
-			im[(y * 512/IMAGE_Y + j) * 512 + x * 512/IMAGE_X + i] = LUMINANCE_ADJUSTMENT * ret[y * IMAGE_Y + x];
+	for (int i=0; i<512/IMAGE_Y; i++){
+		for (int j=0; j<512/IMAGE_X; j++){
+			im[(y * 512/IMAGE_X + j) * 512 + x * 512/IMAGE_Y + i] = LUMINANCE_ADJUSTMENT * ret[y * IMAGE_Y + x];
 		}
 	}
 }
@@ -433,14 +433,15 @@ extern "C" void expandLogImage(unsigned int *im, const uint *ret)
 	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_expandLogImage<<<grid, block>>>(im,ret);
 }
+
 __global__ void dev_expandConstantImage(uint *im, const uint *ret)
 {
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
 
-	for (int i=0; i<512/IMAGE_X; i++){
+	for (int i=0; i<512/IMAGE_Y; i++){
 		for (int j=0; j<512/IMAGE_X; j++){
-			im[(col * 512/IMAGE_X + j) * 512 + row * 512/IMAGE_X + i] = constant_color[ret[col * IMAGE_Y + row]];
+			im[(col * 512/IMAGE_X + j) * 512 + row * 512/IMAGE_Y + i] = constant_color[ret[col * IMAGE_Y + row]];
 		}
 	}
 }
