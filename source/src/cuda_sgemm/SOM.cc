@@ -18,7 +18,7 @@ extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE);
 extern "C" void mean(MATRIX_TYPE *data, MATRIX_TYPE *ret);
 extern "C" void cov(MATRIX_TYPE *data, MATRIX_TYPE *covariance, MATRIX_TYPE *mean_val);
 extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data, unsigned int *indices);
-extern "C" void expandLogImage(unsigned int *im, const uint *ret);
+extern "C" void expandLogImage(unsigned int *im, uint *ret);
 extern "C" void cuda_increaseLuminance(unsigned int *im);
 extern "C" void cuda_decreaseLuminance(unsigned int *im);
 

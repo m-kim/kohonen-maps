@@ -2,6 +2,8 @@
 #include <cublas.h>
 #include <stdio.h>
 #include <cutil_inline.h>
+#include <limits.h>
+
 #define EPSILON 0.000001
 
 float host_alpha[2];
@@ -385,9 +387,8 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, float *vec, 
 
 extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, float *vec, const float *data, unsigned int *argmax, int index)
 {
-	dev_reduce<<<128,128>>>(ret,indices,ww_sum, vec,data, argmax, index);
-	dev_reduce1<<<1,128>>>(ret,indices,ww_sum, vec, data,argmax,index);
-
+	dev_reduce<<<IMAGE_X,IMAGE_Y>>>(ret,indices,ww_sum, vec,data, argmax, index);
+	dev_reduce1<<<1,IMAGE_X>>>(ret,indices,ww_sum, vec, data,argmax,index);
 }
 
 __global__ void dev_buildImage(uint *im, uint *labels, uint *indices)
@@ -498,20 +499,83 @@ extern "C" void cuda_decreaseLuminance(unsigned int *im)
 	dev_increaseLuminance<<<grid, block>>>(im);
 }
 
+__global__ void dev_reduceLogImage(unsigned int *count, unsigned int *save)
+{
+
+	__shared__ int s_count[256];
+
+	// each thread loads one element from global to shared mem
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	s_count[tid] = count[i];
+	__syncthreads();
+
+	// do reduction in shared mem
+	for(unsigned int s=blockDim.x/2; s > 0; s >>=1) {
+	   	if (tid < s){
+	       	//sdata[tid] += sdata[tid + s];
+		   if (s_count[ tid ] < s_count[ s + tid ]){
+			   s_count[tid] = s_count[s+tid];
+
+		   }
+	    	//s_argmax[tid] = s_vec[ s_argmax[s + tid] ] < s_vec[ s_argmax[tid] ]? s_argmax[tid]:;
+	   }
+	   __syncthreads();
+	}
+	if (tid == 0){
+		save[blockIdx.x] = s_count[0];
+	}
+}
+__global__ void dev_reduceLogImage1(unsigned int *count)
+{
+
+	__shared__ int s_count[256];
+
+	// each thread loads one element from global to shared mem
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	s_count[tid] = count[i];
+	__syncthreads();
+
+	// do reduction in shared mem
+	for(unsigned int s=blockDim.x/2; s > 0; s >>=1) {
+	   	if (tid < s){
+	       	//sdata[tid] += sdata[tid + s];
+		   if (s_count[ tid ] < s_count[ s + tid ]){
+			   s_count[tid] = s_count[s+tid];
+
+		   }
+	    	//s_argmax[tid] = s_vec[ s_argmax[s + tid] ] < s_vec[ s_argmax[tid] ]? s_argmax[tid]:;
+	   }
+	   __syncthreads();
+	}
+	if (tid == 0){
+		count[blockIdx.x] = s_count[0];
+	}
+}
 __global__ void dev_expandLogImage(unsigned int *im, const uint *ret)
 {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
+	unsigned int max = im[0];
+	unsigned int scale = 0;
+	if (max > 0)
+		scale = INT_MAX/max;
+
 	for (int i=0; i<512/IMAGE_Y; i++){
 		for (int j=0; j<512/IMAGE_X; j++){
-			im[(y * 512/IMAGE_X + j) * 512 + x * 512/IMAGE_Y + i] = LUMINANCE_ADJUSTMENT * ret[y * IMAGE_Y + x];
+			im[(y * 512/IMAGE_X + j) * 512 + x * 512/IMAGE_Y + i] = scale * ret[y * IMAGE_Y + x];
 		}
 	}
 }
 
-extern "C" void expandLogImage(unsigned int *im, const uint *ret)
+extern "C" void expandLogImage(unsigned int *im, uint *ret)
 {
+	dev_reduceLogImage<<<IMAGE_X, IMAGE_Y>>>(ret, im);
+	dev_reduceLogImage1<<<1, IMAGE_X>>>(im);
+
+	//now the
 	dim3 block(16,16);
 	dim3 grid(IMAGE_Y/16,IMAGE_X/16);
 	dev_expandLogImage<<<grid, block>>>(im,ret);
