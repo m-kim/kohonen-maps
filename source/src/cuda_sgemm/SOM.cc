@@ -218,15 +218,27 @@ int SOM::runCuda()
 		//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
     	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, i);
     	cudaThreadSynchronize();
+
     	lasterror = cudaGetLastError();
     	if (lasterror)
         	printf("reduce:%d %s\n", i, cudaGetErrorString(lasterror));
     }
-
-//    findWeightVector(device_sum.data, device_ww.data, device_data.data,device_indices.data);
-//	device_indices.print();
-    cublasShutdown();
-
+//
+////    findWeightVector(device_sum.data, device_ww.data, device_data.data,device_indices.data);
+////	device_indices.print();
+//    cublasShutdown();
+//    MATRIX<MATRIX_TYPE, HOST> tmp(device_ww2.row, device_ww2.col);
+//    for (int k=0; k<tmp.row; k++){
+//    	for (int j=0; j<tmp.col; j++){
+//    		tmp(k,j) = k * tmp.col + j;
+//    	}
+//    }
+//    cutilSafeCall(cudaMemcpy(device_ww2.data, tmp.data, tmp.row * tmp.col * sizeof(MATRIX_TYPE), cudaMemcpyHostToDevice));
+//
+//	//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
+//	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, 0);
+//
+//	device_argmax.print();
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;

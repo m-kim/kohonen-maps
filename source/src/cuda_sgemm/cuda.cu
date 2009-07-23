@@ -257,54 +257,140 @@ extern "C" void normalizeSum(float *a, unsigned int* ww_count)
 	cudaThreadSynchronize();
 }
 
-//Calculate argmax and sum the data vectors
-__global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
+__global__ void dev_reduce1(uint *ret, uint *indices, float *ww_sum, float *vec, const float *data, unsigned int *argmax, int index)
 {
-	int size = IMAGE_XxY;
-	//using shared memory here will limit me...
-	//initialize with hard coded numbers because compile error on variable initialization
-//	__shared__ int argmax[1024];
-//	__shared__ float s_vec[1024];
+	__shared__ int s_argmax[256];
 
-	int blocksize = REDUCE_BLOCKSIZE;
-	int coalesce_num = size/blocksize;
-
-	for (int i=0; i<IMAGE_XxY/REDUCE_BLOCKSIZE; i++){
-		argmax[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
-//		s_vec[threadIdx.x + i * blocksize] = vec[threadIdx.x + i * blocksize];
-	}
-
-
-	// Large number ->32
-	for (int j=1; j < coalesce_num; j++){
-		if (threadIdx.x + blocksize * j < IMAGE_XxY){
-			argmax[threadIdx.x] = (vec[argmax[threadIdx.x]] > vec[argmax[j * blocksize + threadIdx.x]])?
-						argmax[threadIdx.x]:argmax[j * blocksize + threadIdx.x];
-		}
-	}
-
-	//32->16, 16->8, 8->4, 4->2, 2->1
-	for (int i=0; i<LOG2_REDUCE_BLOCKSIZE; i++){
-		__syncthreads();
-		blocksize = blocksize/2;
-
-		if (threadIdx.x < blocksize){
-			argmax[threadIdx.x] = vec[ argmax[blocksize +threadIdx.x]] < vec[argmax[threadIdx.x]]? argmax[threadIdx.x]:(argmax[blocksize+threadIdx.x]);
-		}
-	}
+	// each thread loads one element from global to shared mem
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	s_argmax[tid] = argmax[i];
 	__syncthreads();
-	if (threadIdx.x < 1){
-		ret[ argmax[0] ]++;
-		indices[index] = argmax[0];
+	// do reduction in shared mem
+	for(unsigned int s=blockDim.x/2; s > 32; s >>=1) {
+	   if (tid < s) {
+			//sdata[tid] += sdata[tid + s];
+		   if (vec[ s_argmax[tid]] < vec[ s_argmax[s + tid]]){
+			   s_argmax[tid] = s_argmax[s+tid];
+			   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+
+		   }
+	   }
+	   __syncthreads();
+	}
+	if (tid < 32){
+		unsigned int s = 32;
+		if (vec[ s_argmax[tid] ] < vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (vec[ s_argmax[tid] ] < vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (vec[ s_argmax[tid] ] < vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (vec[ s_argmax[tid] ] < vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (vec[ s_argmax[tid] ] < vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (vec[ s_argmax[tid] ] < vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   vec[ s_argmax[tid] ] = vec[ s_argmax[s + tid] ];
+		}
+	}
+
+	if (tid == 0){
+		ret[s_argmax[0]]++;
+		indices[index] = s_argmax[0];
 	}
 	//take the vector from data and save it to ww_sum
 	if (threadIdx.x < device_vector_size[0])
-		ww_sum[ argmax[0] *device_vector_size[0] + threadIdx.x] += data[index * device_vector_size[0] + threadIdx.x];
+		ww_sum[ s_argmax[0] *device_vector_size[0] + threadIdx.x] += data[index * device_vector_size[0] + threadIdx.x];
+
+}
+//Calculate argmax and sum the data vectors
+__global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, float *vec, const float *data, unsigned int *argmax, int index)
+{
+	__shared__ int s_argmax[256];
+	__shared__ int s_vec[256];
+
+	// each thread loads one element from global to shared mem
+	unsigned int tid = threadIdx.x;
+	unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	s_vec[tid] = vec[i];
+	s_argmax[tid] = tid;
+	__syncthreads();
+	// do reduction in shared mem
+	for(unsigned int s=blockDim.x/2; s > 32; s >>=1) {
+
+	   	if (tid < s){
+	       	//sdata[tid] += sdata[tid + s];
+		   if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+			   s_argmax[tid] = s_argmax[s+tid];
+			   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		   }
+	    	//s_argmax[tid] = s_vec[ s_argmax[s + tid] ] < s_vec[ s_argmax[tid] ]? s_argmax[tid]:;
+	   }
+	   __syncthreads();
+	}
+	if (tid < 32){
+		unsigned int s = 32;
+		if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		}
+		s /= 2;
+		if (s_vec[ s_argmax[tid] ] < s_vec[ s_argmax[s + tid] ]){
+		   s_argmax[tid] = s_argmax[s+tid];
+		   s_vec[ s_argmax[tid] ] = s_vec[ s_argmax[s + tid] ];
+		}
+	}
+	if (tid == 0){
+		argmax[blockIdx.x] = s_argmax[0] + blockDim.x * blockIdx.x;
+		vec[blockIdx.x] = s_vec[0];
+	}
+
 }
 
-extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
+extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, float *vec, const float *data, unsigned int *argmax, int index)
 {
-	dev_reduce<<<1,REDUCE_BLOCKSIZE>>>(ret,indices,ww_sum, vec,data, argmax, index);
+	dev_reduce<<<128,256>>>(ret,indices,ww_sum, vec,data, argmax, index);
+	dev_reduce1<<<1,128>>>(ret,indices,ww_sum, vec, data,argmax,index);
+
+//	dev_reduce<<<1,REDUCE_BLOCKSIZE>>>(ret,indices,ww_sum, vec, data,argmax,index);
+
 }
 
 __global__ void dev_buildImage(uint *im, uint *labels, uint *indices)
