@@ -383,55 +383,10 @@ __global__ void dev_reduce(uint *ret, uint *indices, float *ww_sum, float *vec, 
 	}
 }
 
-__global__ void dev_reduce0(uint *ret, uint *indices, float *ww_sum, const float *vec, const float *data, unsigned int *argmax, int index)
-{
-	int size = IMAGE_XxY;
-	//using shared memory here will limit me...
-	//initialize with hard coded numbers because compile error on variable initialization
-//	__shared__ int argmax[1024];
-//	__shared__ float s_vec[1024];
-
-	int blocksize = REDUCE_BLOCKSIZE;
-	int coalesce_num = size/blocksize;
-
-	for (int i=0; i<IMAGE_XxY/REDUCE_BLOCKSIZE; i++){
-		argmax[threadIdx.x + i * blocksize] = threadIdx.x + i * blocksize;
-//		s_vec[threadIdx.x + i * blocksize] = vec[threadIdx.x + i * blocksize];
-	}
-
-
-	// Large number ->32
-	for (int j=1; j < coalesce_num; j++){
-		if (threadIdx.x + blocksize * j < IMAGE_XxY){
-			argmax[threadIdx.x] = (vec[argmax[threadIdx.x]] > vec[argmax[j * blocksize + threadIdx.x]])?
-						argmax[threadIdx.x]:argmax[j * blocksize + threadIdx.x];
-		}
-	}
-
-	//32->16, 16->8, 8->4, 4->2, 2->1
-	for (int i=0; i<LOG2_REDUCE_BLOCKSIZE; i++){
-		__syncthreads();
-		blocksize = blocksize/2;
-
-		if (threadIdx.x < blocksize){
-			argmax[threadIdx.x] = vec[ argmax[blocksize +threadIdx.x]] < vec[argmax[threadIdx.x]]? argmax[threadIdx.x]:(argmax[blocksize+threadIdx.x]);
-		}
-	}
-	__syncthreads();
-	if (threadIdx.x < 1){
-		ret[ argmax[0] ]++;
-		indices[index] = argmax[0];
-	}
-	//take the vector from data and save it to ww_sum
-	if (threadIdx.x < device_vector_size[0])
-		ww_sum[ argmax[0] *device_vector_size[0] + threadIdx.x] += data[index * device_vector_size[0] + threadIdx.x];
-}
 extern "C" void reduce(uint *ret, uint *indices, float *ww_sum, float *vec, const float *data, unsigned int *argmax, int index)
 {
 	dev_reduce<<<128,128>>>(ret,indices,ww_sum, vec,data, argmax, index);
 	dev_reduce1<<<1,128>>>(ret,indices,ww_sum, vec, data,argmax,index);
-
-//	dev_reduce0<<<1,REDUCE_BLOCKSIZE>>>(ret,indices,ww_sum, vec, data,argmax,index);
 
 }
 
