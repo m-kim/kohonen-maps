@@ -601,7 +601,7 @@ int main( int argc, char **argv )
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
 	if (som.DEBUG_PRINT)
-		printf("Setup time %f\n\n", time);
+		printf("Copy everything to memory: %f ms\n\n", time);
 
 	som.runCuda();
 

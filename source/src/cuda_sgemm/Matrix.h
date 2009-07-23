@@ -102,6 +102,10 @@ public:
 		return sum;
 	}
 
+	int size()
+	{
+		return row * col;
+	}
 };
 
 

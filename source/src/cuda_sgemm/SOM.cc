@@ -47,7 +47,7 @@ void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
 {
 	dim3 block(16,16);
 	dim3 grid(IMAGE_X/16,IMAGE_Y/16);
-	expandSplitImage(device_split_pbo, device_ret.data + g_index * IMAGE_XxY);
+	expandSplitImage(device_split_pbo, device_constant_image.data + g_index * IMAGE_XxY);
 }
 
 void SOM::updateConvergence()
@@ -108,12 +108,15 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 	cutilSafeCall(cudaMalloc((void**)&device_ww_count2.data, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
 
-    //multiply by the number of genomes
-    //+1 for the regular image
-    device_ret.row = ww.row * (GENOMIC_DATA_COUNT + 1);
-    device_ret.col = 1;
-	cutilSafeCall(cudaMalloc((void**)&device_ret.data, sizeof(unsigned int) * device_ret.row));
-    cutilSafeCall(cudaMemset((void*)device_ret.data, 0, sizeof(unsigned int) * device_ret.row));
+    device_constant_image.row = ww.row;
+    device_constant_image.col = ww.col;
+	cutilSafeCall(cudaMalloc((void**)&device_constant_image.data, sizeof(unsigned int) * device_constant_image.size()));
+    cutilSafeCall(cudaMemset((void*)device_constant_image.data, 0, sizeof(unsigned int) * device_constant_image.size()));
+
+    device_log_image.row = ww.row;
+    device_log_image.col = ww.col;
+	cutilSafeCall(cudaMalloc((void**)&device_log_image.data, sizeof(unsigned int) * device_log_image.size()));
+    cutilSafeCall(cudaMemset((void*)device_log_image.data, 0, sizeof(unsigned int) * device_log_image.size()));
 
     device_indices.row = DATA_SIZE;
     device_indices.col = 1;
@@ -179,18 +182,19 @@ int SOM::runCuda()
 
 	unsigned int timer;
     cutCreateTimer(&timer);
-    double time,total_time;
+    double time;
 
     dim3 block;
     dim3 grid;
 
-    total_time = 0;
+
     cutResetTimer(timer);
     cutStartTimer(timer);
+
     cutilSafeCall(cudaMemset((void*)device_ww_count.data, 0, sizeof(unsigned int) * device_ww_count.row));
     cutilSafeCall(cudaMemset((void*)device_ww_count2.data, 0, sizeof(unsigned int) * device_ww_count2.row));
     cutilSafeCall(cudaMemset(device_ww2.data, 0, sizeof(float) * device_ww2.row * device_ww2.col));
-    cutilSafeCall(cudaMemset(device_ret.data, 0, sizeof(unsigned int) * device_ret.row));
+    cutilSafeCall(cudaMemset(device_constant_image.data, 0, sizeof(unsigned int) * device_constant_image.size()));
 	cutilSafeCall(cudaMemset(device_sum.data, 0, sizeof(float) * device_sum.row * device_sum.col));
 
     //this is related to IMAGE_MXN
@@ -226,33 +230,22 @@ int SOM::runCuda()
 //
 ////    findWeightVector(device_sum.data, device_ww.data, device_data.data,device_indices.data);
 ////	device_indices.print();
-//    cublasShutdown();
-//    MATRIX<MATRIX_TYPE, HOST> tmp(device_ww2.row, device_ww2.col);
-//    for (int k=0; k<tmp.row; k++){
-//    	for (int j=0; j<tmp.col; j++){
-//    		tmp(k,j) = k * tmp.col + j;
-//    	}
-//    }
-//    cutilSafeCall(cudaMemcpy(device_ww2.data, tmp.data, tmp.row * tmp.col * sizeof(MATRIX_TYPE), cudaMemcpyHostToDevice));
-//
-//	//the device_ww_count that's returned *might* be transposed.  Right now, the data is correct, but might need tranposing.
-//	reduce(device_ww_count.data,device_indices.data,device_sum.data, device_ww2.data,device_data.data,device_argmax.data, 0);
-//
-//	device_argmax.print();
+    cublasShutdown();
+
+
+
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
     if(DEBUG_PRINT)
-    	printf("Run time %f\n\n", time);
+    	printf("Run time %f ms\n\n", time);
     cutResetTimer(timer);
 
-    cudaMemset(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_XxY, 0, sizeof(int) * IMAGE_XxY);
-    cudaMemset(device_ret.data, 0, GENOMIC_DATA_COUNT * sizeof(int) * IMAGE_XxY);
-    buildImage(device_ret.data + GENOMIC_DATA_COUNT * IMAGE_XxY,
-    											device_labels.data,device_indices.data);
+    cudaMemset(device_constant_image.data, 0, sizeof(int) * device_constant_image.size());
+    buildImage(device_constant_image.data,device_labels.data,device_indices.data);
 
     if (RUN_DISPLAY){
-        expandConstantImage(device_regular_pbo, device_ret.data + GENOMIC_DATA_COUNT * IMAGE_XxY);
+        expandConstantImage(device_regular_pbo, device_constant_image.data);
         //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
         //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
         //
@@ -281,7 +274,7 @@ int SOM::runCuda()
     }
 
 	if (DEBUG_PRINT)
-    	printf("Total Time: %f\n\n", total_time);
+    	printf("Total Time: %f ms\n\n", total_time);
 
    	return EXIT_SUCCESS;
 }
