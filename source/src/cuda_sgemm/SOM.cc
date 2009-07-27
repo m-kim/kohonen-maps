@@ -248,7 +248,6 @@ int SOM::runCuda()
 
 		//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
         //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
-        //
 
 		expandLogImage(device_log_pbo, device_ww_count.data);
         //	generateSplitImage(genome_index, device_split_pbo);

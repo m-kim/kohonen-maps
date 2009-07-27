@@ -8,6 +8,7 @@
 #include "Matrix.h"
 #include "SOM.h"
 
+#include <QtGui/QKeyEvent>
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
 
@@ -207,4 +208,25 @@ void DensitySOMWidget::paintGL()
 }
 void DensitySOMWidget::keyPressEvent( QKeyEvent *e )
 {
+	switch(e->key()){
+    case Qt::Key_N:
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
+
+        som.updateWeights();
+        som.runCuda();
+        som.updateConvergence();
+       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
+       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
+       	cutilSafeCall(cudaGLUnmapBufferObject(log_pbo) );
+
+    	break;
+    case Qt::Key_Escape:
+    	close();
+    	break;
+
+	}
+
+	QGLWidget::updateGL();
 }
