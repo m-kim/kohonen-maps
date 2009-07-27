@@ -155,6 +155,7 @@ void keyboard(unsigned char key, int /*x*/, int /*y*/)
 	default:
 		break;
     }
+
     glutPostRedisplay();
 }
 
@@ -599,6 +600,7 @@ int main( int argc, char **argv )
 		cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
 	}
 
+	reshape(width,height);
 	if (som.RUN_DISPLAY)
 		glutMainLoop();
 	else{
