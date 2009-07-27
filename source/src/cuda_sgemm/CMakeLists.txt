@@ -29,8 +29,8 @@ LINK_DIRECTORIES(
 ENDIF()
 
 CUDA_ADD_EXECUTABLE(cuda_som
-	QtSOMWidget.cc
 	DensitySOMWidget.cc
+	QtSOMWidget.cc
 	SOM.cc
 	main.cc
   cuda.cu

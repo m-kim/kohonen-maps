@@ -187,7 +187,6 @@ int SOM::runCuda()
     dim3 block;
     dim3 grid;
 
-
     cutResetTimer(timer);
     cutStartTimer(timer);
 
@@ -232,8 +231,6 @@ int SOM::runCuda()
 ////	device_indices.print();
     cublasShutdown();
 
-
-
 	cutStopTimer(timer);
     time = cutGetTimerValue(timer);
     total_time += time;
@@ -246,11 +243,14 @@ int SOM::runCuda()
 
     if (RUN_DISPLAY){
         expandConstantImage(device_regular_pbo, device_constant_image.data);
-        //    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
+		unsigned int *tmp = (unsigned int *)malloc(sizeof(unsigned int) * 512 * 512);
+		cudaMemcpy(tmp, device_regular_pbo, sizeof(unsigned int) * 512 * 512, cudaMemcpyDeviceToHost);
+
+		//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
         //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
         //
 
-		expandLogImage(device_log_pbo, device_ww_count.data);
+		//expandLogImage(device_log_pbo, device_ww_count.data);
         //	generateSplitImage(genome_index, device_split_pbo);
     }
     if (SAVE_FILES){

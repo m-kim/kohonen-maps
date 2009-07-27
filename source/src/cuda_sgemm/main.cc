@@ -27,268 +27,267 @@
 
 #include "Tokenizer.h"
 #include "SOM.h"
+#include "DensitySOMWidget.h"
+#include <qapplication.h>
+DensitySOMWidget *dense;
 
-SOM som;
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
 int split_som_window = 0, som_window = 0;
 
 float bin1, bin2;
-uint *d_split_output;
-uchar4 *d_regular_output;
-unsigned int *d_log_output;
 
-GLuint split_pbo = 0, log_pbo = 0;          // OpenGL pixel buffer object
-GLuint pbo = 0;
+//GLuint split_pbo = 0, log_pbo = 0;          // OpenGL pixel buffer object
+//GLuint pbo = 0;
 
-GLuint displayRegTex = 0, displaySplitTex = 0, display_log_tex = 0;
+//GLuint displayRegTex = 0, displaySplitTex = 0, display_log_tex = 0;
 unsigned int width = 1024, height = 1024;
 
 
 // display results using OpenGL (called by GLUT)
-void display()
-{
-	glutSetWindow(som_window);
+//void display()
+//{
+//	glutSetWindow(som_window);
+//
+//	if (som.RUN_CYCLE && som.counter < som.host_T){
+//		som.counter++;
+//		som.updateWeights();
+//		som.runCuda();
+//		som.updateConvergence();
+//	}
+//
+//	// display results
+//	glClear(GL_COLOR_BUFFER_BIT);
+//
+//	// download image from PBO to OpenGL texture
+//	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+//	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
+//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+//	glTexSubImage2D(GL_TEXTURE_TYPE,
+//							0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+//	glutReportErrors();
+//	glEnable(GL_TEXTURE_TYPE);
+//
+//	// draw textured quad
+//	glDisable(GL_DEPTH_TEST);
+//	glBegin(GL_QUADS);
+//	glTexCoord2f(0    , height/2);  glVertex2f(0, 0);
+//	glTexCoord2f(width/2, height/2);  glVertex2f(1, 0);
+//	glTexCoord2f(width/2, 0     );  glVertex2f(1, 1);
+//	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
+//	glEnd();
+//	glDisable(GL_TEXTURE_TYPE);
+//
+//	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
+//	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
+//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+//	glTexSubImage2D(GL_TEXTURE_TYPE,
+//					0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+//	glEnable(GL_TEXTURE_TYPE);
+//
+//	// draw textured quad
+//	glBegin(GL_QUADS);
+//	glTexCoord2f(0    , height/2);  glVertex2f(1, 0);
+//	glTexCoord2f(width/2, height/2);  glVertex2f(2, 0);
+//	glTexCoord2f(width/2, 0     );  glVertex2f(2, 1);
+//	glTexCoord2f(0    , 0     );  glVertex2f(1, 1);
+//	glEnd();
+//	glDisable(GL_TEXTURE_TYPE);
+//
+//	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
+//	glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
+//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+//	glTexSubImage2D(GL_TEXTURE_TYPE,
+//					0, 0, 0, width/2, height/2, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
+//	glEnable(GL_TEXTURE_TYPE);
+//
+//	// draw textured quad
+//	glBegin(GL_QUADS);
+//	glTexCoord2f(0    , height/2);  glVertex2f(0, 1);
+//	glTexCoord2f(width/2, height/2);  glVertex2f(1, 1);
+//	glTexCoord2f(width/2, 0     );  glVertex2f(1, 2);
+//	glTexCoord2f(0    , 0     );  glVertex2f(0, 2);
+//	glEnd();
+//	glDisable(GL_TEXTURE_TYPE);
+//
+//    glutSwapBuffers();
+////    glutReportErrors();
+//
+//}
+//
+//
+//void keyboard(unsigned char key, int /*x*/, int /*y*/)
+//{
+//    switch(key) {
+//    case '+':
+//		som.increaseLuminance();
+//    	break;
+//    case '-':
+//    	som.decreaseLuminance();
+//    case 'n':
+//    case 'N':
+//       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+//       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+//       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
+//
+//        som.updateWeights();
+//        som.runCuda();
+//        som.updateConvergence();
+//       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
+//       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
+//       	cutilSafeCall(cudaGLUnmapBufferObject(log_pbo) );
+//
+//    	break;
+//    case 'r':
+//    case 'R':
+//    	som.genome_index = ++som.genome_index % GENOMIC_DATA_COUNT;
+//    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+//    	som.generateSplitImage(som.genome_index, d_split_output);
+//       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
+//
+//       	printf("Genome data %d\n", som.genome_index + 1);
+//    	break;
+//	case 27:
+//		exit(0);
+//		break;
+//
+//	default:
+//		break;
+//    }
+//
+//    glutPostRedisplay();
+//}
 
-	if (som.RUN_CYCLE && som.counter < som.host_T){
-		som.counter++;
-		som.updateWeights();
-		som.runCuda();
-		som.updateConvergence();
-	}
+//void initPBO()
+//{
+//    if (pbo) {
+//        // delete old buffer
+//        cutilSafeCall(cudaGLUnregisterBufferObject(pbo));
+//        glDeleteBuffersARB(1, &pbo);
+//    }
+//
+//    // create pixel buffer object for display
+//    glGenBuffersARB(1, &pbo);
+//    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+//
+//    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uchar4), 0, GL_STREAM_DRAW_ARB);
+//    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+//
+//    cutilSafeCall(cudaGLRegisterBufferObject(pbo));
+//
+//    // create texture for display
+//    if (displayRegTex) {
+//        glDeleteTextures(1, &displayRegTex);
+//    }
+//    glGenTextures(1, &displayRegTex);
+//    glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
+//    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width/2, height/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+//    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+//    glBindTexture  (GL_TEXTURE_TYPE, 0);
+//
+//}
+//void initSplitPBO()
+//{
+//    if (split_pbo) {
+//        // delete old buffer
+//        cutilSafeCall(cudaGLUnregisterBufferObject(split_pbo));
+//        glDeleteBuffersARB(1, &split_pbo);
+//    }
+//
+//    // create pixel buffer object for display
+//    glGenBuffersARB(1, &split_pbo);
+//    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
+//    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uint), 0, GL_STREAM_DRAW_ARB);
+//    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+//
+//    cutilSafeCall(cudaGLRegisterBufferObject(split_pbo));
+//
+//    // create texture for display
+//    if (displaySplitTex) {
+//        glDeleteTextures(1, &displaySplitTex);
+//    }
+//    glGenTextures(1, &displaySplitTex);
+//    glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
+//    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width/2, height/2, 0, GL_RGBA, GL_UNSIGNED_INT, NULL);
+//    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+//    glBindTexture  (GL_TEXTURE_TYPE, 0);
+//
+//}
+//void initLogPBO()
+//{
+//    if (log_pbo) {
+//        // delete old buffer
+//        cutilSafeCall(cudaGLUnregisterBufferObject(log_pbo));
+//        glDeleteBuffersARB(1, &log_pbo);
+//    }
+//
+//    // create pixel buffer object for display
+//    glGenBuffersARB(1, &log_pbo);
+//    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
+//    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(unsigned int), 0, GL_STREAM_DRAW_ARB);
+//    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+//
+//    cutilSafeCall(cudaGLRegisterBufferObject(log_pbo));
+//
+//    // create texture for display
+//    if (display_log_tex) {
+//        glDeleteTextures(1, &display_log_tex);
+//    }
+//    glGenTextures(1, &display_log_tex);
+//    glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
+//    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_LUMINANCE, width/2, height/2, 0, GL_LUMINANCE, GL_UNSIGNED_INT, NULL);
+//    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+//    glBindTexture  (GL_TEXTURE_TYPE, 0);
+//
+//}
 
-	// display results
-	glClear(GL_COLOR_BUFFER_BIT);
+//void initGLBuffers()
+//{
+//	initPBO();
+//	initSplitPBO();
+//	initLogPBO();
+//}
+//void reshape(int x, int y)
+//{
+//    width = x; height = y;
+//
+//    //initGLBuffers();
+//
+//    glViewport(0, 0, x, y);
+//
+//    glMatrixMode(GL_MODELVIEW);
+//    glLoadIdentity();
+//
+//    glMatrixMode(GL_PROJECTION);
+//    glLoadIdentity();
+//    glOrtho(0.0, 2.0, 0.0, 2.0, 0.0, 1.0);
+//}
+//void idle()
+//{
+//    glutPostRedisplay();
+//}
 
-	// download image from PBO to OpenGL texture
-	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
-	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-	glTexSubImage2D(GL_TEXTURE_TYPE,
-							0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glutReportErrors();
-	glEnable(GL_TEXTURE_TYPE);
-
-	// draw textured quad
-	glDisable(GL_DEPTH_TEST);
-	glBegin(GL_QUADS);
-	glTexCoord2f(0    , height/2);  glVertex2f(0, 0);
-	glTexCoord2f(width/2, height/2);  glVertex2f(1, 0);
-	glTexCoord2f(width/2, 0     );  glVertex2f(1, 1);
-	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
-	glEnd();
-	glDisable(GL_TEXTURE_TYPE);
-
-	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
-	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
-	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-	glTexSubImage2D(GL_TEXTURE_TYPE,
-					0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glEnable(GL_TEXTURE_TYPE);
-
-	// draw textured quad
-	glBegin(GL_QUADS);
-	glTexCoord2f(0    , height/2);  glVertex2f(1, 0);
-	glTexCoord2f(width/2, height/2);  glVertex2f(2, 0);
-	glTexCoord2f(width/2, 0     );  glVertex2f(2, 1);
-	glTexCoord2f(0    , 0     );  glVertex2f(1, 1);
-	glEnd();
-	glDisable(GL_TEXTURE_TYPE);
-
-	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
-	glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
-	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-	glTexSubImage2D(GL_TEXTURE_TYPE,
-					0, 0, 0, width/2, height/2, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
-	glEnable(GL_TEXTURE_TYPE);
-
-	// draw textured quad
-	glBegin(GL_QUADS);
-	glTexCoord2f(0    , height/2);  glVertex2f(0, 1);
-	glTexCoord2f(width/2, height/2);  glVertex2f(1, 1);
-	glTexCoord2f(width/2, 0     );  glVertex2f(1, 2);
-	glTexCoord2f(0    , 0     );  glVertex2f(0, 2);
-	glEnd();
-	glDisable(GL_TEXTURE_TYPE);
-
-    glutSwapBuffers();
-//    glutReportErrors();
-
-}
-
-
-void keyboard(unsigned char key, int /*x*/, int /*y*/)
-{
-    switch(key) {
-    case '+':
-		som.increaseLuminance();
-    	break;
-    case '-':
-    	som.decreaseLuminance();
-    case 'n':
-    case 'N':
-       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
-       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-       	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
-
-        som.updateWeights();
-        som.runCuda();
-        som.updateConvergence();
-       	cutilSafeCall(cudaGLUnmapBufferObject(pbo) );
-       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
-       	cutilSafeCall(cudaGLUnmapBufferObject(log_pbo) );
-
-    	break;
-    case 'r':
-    case 'R':
-    	som.genome_index = ++som.genome_index % GENOMIC_DATA_COUNT;
-    	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-    	som.generateSplitImage(som.genome_index, d_split_output);
-       	cutilSafeCall(cudaGLUnmapBufferObject(split_pbo) );
-
-       	printf("Genome data %d\n", som.genome_index + 1);
-    	break;
-	case 27:
-		exit(0);
-		break;
-
-	default:
-		break;
-    }
-
-    glutPostRedisplay();
-}
-
-void initPBO()
-{
-    if (pbo) {
-        // delete old buffer
-        cutilSafeCall(cudaGLUnregisterBufferObject(pbo));
-        glDeleteBuffersARB(1, &pbo);
-    }
-
-    // create pixel buffer object for display
-    glGenBuffersARB(1, &pbo);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uchar4), 0, GL_STREAM_DRAW_ARB);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-
-    cutilSafeCall(cudaGLRegisterBufferObject(pbo));
-
-    // create texture for display
-    if (displayRegTex) {
-        glDeleteTextures(1, &displayRegTex);
-    }
-    glGenTextures(1, &displayRegTex);
-    glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
-    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width/2, height/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture  (GL_TEXTURE_TYPE, 0);
-
-}
-void initSplitPBO()
-{
-    if (split_pbo) {
-        // delete old buffer
-        cutilSafeCall(cudaGLUnregisterBufferObject(split_pbo));
-        glDeleteBuffersARB(1, &split_pbo);
-    }
-
-    // create pixel buffer object for display
-    glGenBuffersARB(1, &split_pbo);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(uint), 0, GL_STREAM_DRAW_ARB);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-
-    cutilSafeCall(cudaGLRegisterBufferObject(split_pbo));
-
-    // create texture for display
-    if (displaySplitTex) {
-        glDeleteTextures(1, &displaySplitTex);
-    }
-    glGenTextures(1, &displaySplitTex);
-    glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
-    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_RGBA8, width/2, height/2, 0, GL_RGBA, GL_UNSIGNED_INT, NULL);
-    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture  (GL_TEXTURE_TYPE, 0);
-
-}
-void initLogPBO()
-{
-    if (log_pbo) {
-        // delete old buffer
-        cutilSafeCall(cudaGLUnregisterBufferObject(log_pbo));
-        glDeleteBuffersARB(1, &log_pbo);
-    }
-
-    // create pixel buffer object for display
-    glGenBuffersARB(1, &log_pbo);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(unsigned int), 0, GL_STREAM_DRAW_ARB);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-
-    cutilSafeCall(cudaGLRegisterBufferObject(log_pbo));
-
-    // create texture for display
-    if (display_log_tex) {
-        glDeleteTextures(1, &display_log_tex);
-    }
-    glGenTextures(1, &display_log_tex);
-    glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
-    glTexImage2D   (GL_TEXTURE_TYPE, 0, GL_LUMINANCE, width/2, height/2, 0, GL_LUMINANCE, GL_UNSIGNED_INT, NULL);
-    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_TYPE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture  (GL_TEXTURE_TYPE, 0);
-
-}
-
-void initGLBuffers()
-{
-	initPBO();
-	initSplitPBO();
-	initLogPBO();
-}
-void reshape(int x, int y)
-{
-    width = x; height = y;
-
-    //initGLBuffers();
-
-    glViewport(0, 0, x, y);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0.0, 2.0, 0.0, 2.0, 0.0, 1.0);
-}
-void idle()
-{
-    glutPostRedisplay();
-}
-
-void initGL( int argc, char **argv )
-{
-    // initialize GLUT callback functions
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH);
-    glutInitWindowSize(width, height);
-    som_window = glutCreateWindow("CUDA SOM");
-
-    glutDisplayFunc(display);
-    glutKeyboardFunc(keyboard);
-//    glutMouseFunc(mouse);
-//    glutMotionFunc(motion);
-    glutReshapeFunc(reshape);
-
-
-    glutIdleFunc(idle);
-}
-void readConfig()
+//void initGL( int argc, char **argv )
+//{
+//    // initialize GLUT callback functions
+//    glutInit(&argc, argv);
+//    glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA | GLUT_DOUBLE | GLUT_DEPTH);
+//    glutInitWindowSize(width, height);
+//    som_window = glutCreateWindow("CUDA SOM");
+//
+////    glutDisplayFunc(display);
+////    glutKeyboardFunc(keyboard);
+////    glutMouseFunc(mouse);
+////    glutMotionFunc(motion);
+//    glutReshapeFunc(reshape);
+//
+//
+//    glutIdleFunc(idle);
+//}
+void readConfig(SOM &som)
 {
 	std::ifstream file;
 	char filename[100];
@@ -339,7 +338,7 @@ void readConfig()
 		}
 	}
 }
-int getLineCount(std::string name)
+int getLineCount(std::string name, SOM &som)
 {
 	std::ifstream file;
 	std::stringstream filename;
@@ -364,7 +363,7 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, 
 {
 	std::ifstream file;
 	std::stringstream filename;
-	filename << som.DATA_PATH << name;
+	filename << dense->som.DATA_PATH << name;
 	file.open(filename.str().c_str(), std::ifstream::in);
 	std::string str;
 
@@ -383,7 +382,7 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, 
 		getline(file, str);
 		if (isdigit(str.c_str()[0])){
 			char *tok = strtok((char*)str.c_str(), ",");
-			for (int i=0; i<som.VECTOR_SIZE; i++){
+			for (int i=0; i<dense->som.VECTOR_SIZE; i++){
 				//16 rows by 20000 cols in the file
 				x(offset + row, i) = atof(tok);
 				tok = strtok(NULL, " ");
@@ -444,9 +443,13 @@ int getFile(std::string name, ORDERED_MATRIX<MATRIX_TYPE,  HOST, ROW_MAJOR> &x, 
 
 int main( int argc, char **argv )
 {
-	readConfig();
-	if (som.RUN_DISPLAY)
-		initGL(argc,argv);
+	QApplication a(argc,argv);
+
+	dense = new DensitySOMWidget();
+	readConfig(dense->som);
+
+//	if (dense->som.RUN_DISPLAY)
+//		initGL(argc,argv);
 
 
 	ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> x;
@@ -456,21 +459,21 @@ int main( int argc, char **argv )
 	char filename[100];
 	std::string str;
 	int line_count = 0;
-	line_count += getLineCount("anoGAm1-100k.fa");
-	line_count += getLineCount("cb3-100k.fa");
-	line_count += getLineCount("ce2-100k.fa");
-	line_count += getLineCount("dm2-100k.fa");
-	line_count += getLineCount("dp3-100k.fa");
-	line_count += getLineCount("galgal2-100k.fa");
-	line_count += getLineCount("fr2-100k.fa");
-	line_count += getLineCount("tetnig1-100k.fa");
-	line_count += getLineCount("ci1-100k.fa");
+	line_count += getLineCount("anoGAm1-100k.fa",dense->som);
+	line_count += getLineCount("cb3-100k.fa",dense->som);
+	line_count += getLineCount("ce2-100k.fa",dense->som);
+	line_count += getLineCount("dm2-100k.fa",dense->som);
+	line_count += getLineCount("dp3-100k.fa",dense->som);
+	line_count += getLineCount("galgal2-100k.fa",dense->som);
+	line_count += getLineCount("fr2-100k.fa",dense->som);
+	line_count += getLineCount("tetnig1-100k.fa",dense->som);
+	line_count += getLineCount("ci1-100k.fa",dense->som);
 //	line_count += getLineCount("danrer3-100k.fa");
 
 	x.row = line_count;
-	x.col = som.VECTOR_SIZE;
+	x.col = dense->som.VECTOR_SIZE;
 	x.data = (MATRIX_TYPE*)malloc(sizeof(MATRIX_TYPE) * x.row * x.col);	labels = (uint*)malloc(sizeof(uint) * x.row);
-	som.DATA_SIZE = line_count;
+	dense->som.DATA_SIZE = line_count;
 
 	int row = 0;
 	row += getFile("anoGAm1-100k.fa", x, labels, 0, 0);
@@ -483,7 +486,7 @@ int main( int argc, char **argv )
 	row += getFile("tetnig1-100k.fa", x, labels, row, 7);
 	row += getFile("ci1-100k.fa", x, labels, row, 8);
 
-	if (som.DEBUG_PRINT)
+	if (dense->som.DEBUG_PRINT)
 		printf("%d %d\n", row, line_count);
 //	row += getFile("danrer3-100k.fa", x, labels, row, 9);
 	//getFile("hg17-100k.fa", x, labels, 2627 + 956 + 999 + 1052 + 1339 + 8236, 6);
@@ -496,15 +499,15 @@ int main( int argc, char **argv )
 //			labels[i * 2000 + j] = i;
 //		}
 //	}
-	MATRIX<float, HOST> pc1(som.VECTOR_SIZE, 1);
+	MATRIX<float, HOST> pc1(dense->som.VECTOR_SIZE, 1);
 
-	MATRIX<float, HOST> pc2(som.VECTOR_SIZE, 1);
+	MATRIX<float, HOST> pc2(dense->som.VECTOR_SIZE, 1);
 
 
 	//x.normalize();
 	x.pca(pc1,pc2);
 
-	if (som.DEBUG_PRINT){
+	if (dense->som.DEBUG_PRINT){
 		printf("pc1: ");
 		pc1.print();
 		printf("pc2: ");
@@ -516,9 +519,9 @@ int main( int argc, char **argv )
 	//it needed a reverse index
 	float *dm = x.mean();//(float*)malloc(sizeof(float) * x.col);
 
-	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> data_dm(som.DATA_SIZE, som.VECTOR_SIZE);
-	MATRIX<float, HOST> pd1(som.DATA_SIZE, 1);
-	MATRIX<float, HOST> pd2(som.DATA_SIZE, 1);
+	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> data_dm(dense->som.DATA_SIZE, dense->som.VECTOR_SIZE);
+	MATRIX<float, HOST> pd1(dense->som.DATA_SIZE, 1);
+	MATRIX<float, HOST> pd2(dense->som.DATA_SIZE, 1);
 
 	for (int i=0; i<data_dm.row; i++){
 		for (int j=0; j<data_dm.col; j++){
@@ -538,10 +541,10 @@ int main( int argc, char **argv )
 	//ummm...this is only if M is "None"
 	//M = int(N * std2 / std1);
 
-	bin1 = 2 * som.EXPANSION * std1 / IMAGE_Y;
-	bin2 = 2 * som.EXPANSION * std2 / IMAGE_X;
+	bin1 = 2 * dense->som.EXPANSION * std1 / IMAGE_Y;
+	bin2 = 2 * dense->som.EXPANSION * std2 / IMAGE_X;
 
-	if (som.DEBUG_PRINT){
+	if (dense->som.DEBUG_PRINT){
 		printf("Std dev: %f %f\n", std1,std2);
 		printf("scale %f %f %d %d\n", bin1, bin2, IMAGE_X, IMAGE_Y);
 	}
@@ -550,70 +553,73 @@ int main( int argc, char **argv )
  * init_ww and
  * musical_chairs
  */
-	float *b1 = (float*)malloc(sizeof(float) * som.VECTOR_SIZE);
-	float *b2 = (float*)malloc(sizeof(float) * som.VECTOR_SIZE);
+	float *b1 = (float*)malloc(sizeof(float) * dense->som.VECTOR_SIZE);
+	float *b2 = (float*)malloc(sizeof(float) * dense->som.VECTOR_SIZE);
 	for (int i=0; i<pc1.row; i++){
 		b1[i] = pc1.data[i] * bin1;
 		b2[i] = pc2.data[i] * bin2;
 	}
 
-	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> ww(som.VECTOR_SIZE, IMAGE_XxY);
+	ORDERED_MATRIX<float, HOST, COLUMN_MAJOR> ww(dense->som.VECTOR_SIZE, IMAGE_XxY);
 
 	//remember, mean0 = dm
 	for (int i=0; i<IMAGE_Y; i++){
 		for (int j=0; j<IMAGE_X; j++){
-			for (int k=0; k<som.VECTOR_SIZE; k++){
+			for (int k=0; k<dense->som.VECTOR_SIZE; k++){
 				ww(k,i * IMAGE_X + j) = dm[k] + (b1[k] * (i - IMAGE_Y/2) + b2[k] * (j-IMAGE_X/2));
 			}
 		}
 	}
 
-	if(som.RUN_DISPLAY){
-		// map PBO to get CUDA device pointer
-		initGLBuffers();
-		cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
-		cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-		cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
-	}
-	else{
-		cutilSafeCall(cudaMalloc((void**)&d_regular_output, sizeof(unsigned int) * 512 * 512));
-		cutilSafeCall(cudaMalloc((void**)&d_split_output, sizeof(unsigned int) * 512 * 512));
-		cutilSafeCall(cudaMalloc((void**)&d_log_output, sizeof(unsigned int) * 512 * 512));
-	}
+//	if(dense->som.RUN_DISPLAY){
+//		// map PBO to get CUDA device pointer
+//		initGLBuffers();
+//		cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+//		cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+//		cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
+//	}
+//	else{
+//		cutilSafeCall(cudaMalloc((void**)&d_regular_output, sizeof(unsigned int) * 512 * 512));
+//		cutilSafeCall(cudaMalloc((void**)&d_split_output, sizeof(unsigned int) * 512 * 512));
+//		cutilSafeCall(cudaMalloc((void**)&d_log_output, sizeof(unsigned int) * 512 * 512));
+//	}
+	dense->show();
 
 	unsigned int timer;
     cutCreateTimer(&timer);
     double time;
     cutResetTimer(timer);
     cutStartTimer(timer);
-    som.setupCuda(ww,x,labels,(uint*)d_regular_output, d_split_output, d_log_output);
+    dense->setupCuda(ww,x,labels);
 	cutStopTimer(timer);
 	time = cutGetTimerValue(timer);
-	if (som.DEBUG_PRINT)
+	if (dense->som.DEBUG_PRINT)
 		printf("Copy everything to memory: %f ms\n\n", time);
 
-	som.runCuda();
+	dense->som.runCuda();
 
-	if (som.RUN_DISPLAY){
-		cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
-		cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
-		cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
-	}
+	dense->unMap();
+//	if (dense->som.RUN_DISPLAY){
+//		cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
+//		cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
+//		cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
+//	}
 
-	reshape(width,height);
-	if (som.RUN_DISPLAY)
-		glutMainLoop();
-	else{
-		while( som.counter < som.host_T){
-			som.counter++;
-			som.updateWeights();
-			som.runCuda();
-			som.updateConvergence();
-		}
-		cutilSafeCall(cudaFree(d_regular_output));
-		cutilSafeCall(cudaFree(d_split_output));
-		cutilSafeCall(cudaFree(d_log_output));
-	}
+//	reshape(width,height);
+//	if (som.RUN_DISPLAY)
+//		glutMainLoop();
+//	else{
+//		while( som.counter < som.host_T){
+//			som.counter++;
+//			som.updateWeights();
+//			som.runCuda();
+//			som.updateConvergence();
+//		}
+//		cutilSafeCall(cudaFree(d_regular_output));
+//		cutilSafeCall(cudaFree(d_split_output));
+//		cutilSafeCall(cudaFree(d_log_output));
+//	}
 
 	delete dm, b1,b2,labels;
+	return a.exec();
 };

@@ -1,6 +1,7 @@
 #ifndef QTSOMWIDGET_H
 #define QTSOMWIDGET_H
-#include <QtOpenGL/qgl.h>
+
+#include <QtOpenGL/QGLWidget>
 
 class QTimer;
 
