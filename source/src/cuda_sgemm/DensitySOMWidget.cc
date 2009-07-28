@@ -141,9 +141,8 @@ void DensitySOMWidget::resizeGL( int x, int y )
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0.0, 2.0, 0.0, 2.0, 0.0, 1.0);
-
-
 }
+
 void DensitySOMWidget::paintGL()
 {
 	if (som.RUN_CYCLE && som.counter < som.host_T){
@@ -204,8 +203,8 @@ void DensitySOMWidget::paintGL()
 	glTexCoord2f(0    , 0     );  glVertex2f(0, 2);
 	glEnd();
 	glDisable(GL_TEXTURE_TYPE);
-
 }
+
 void DensitySOMWidget::keyPressEvent( QKeyEvent *e )
 {
 	switch(e->key()){
@@ -222,10 +221,8 @@ void DensitySOMWidget::keyPressEvent( QKeyEvent *e )
        	cutilSafeCall(cudaGLUnmapBufferObject(log_pbo) );
 
     	break;
-    case Qt::Key_Escape:
-    	close();
-    	break;
-
+    default:
+		QtSOMWidget::keyPressEvent(e);
 	}
 
 	QGLWidget::updateGL();

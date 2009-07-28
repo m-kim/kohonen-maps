@@ -17,6 +17,12 @@ QtSOMWidget::QtSOMWidget( int timerInterval, QWidget *parent, char *name ) : QGL
 
 void QtSOMWidget::keyPressEvent( QKeyEvent *e )
 {
+	switch(e->key()){
+    case Qt::Key_Escape:
+    	close();
+    	break;
+	}
+
 }
 
 void QtSOMWidget::timeOut()
