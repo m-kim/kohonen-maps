@@ -104,7 +104,6 @@ __global__ void dev_calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 	}
 }
 
-
 extern "C" void calc_ww2(MATRIX_TYPE *ww, MATRIX_TYPE *ww2)
 {
 	dev_calc_ww2<<<IMAGE_XxY/128,128>>>(ww,ww2);
@@ -542,8 +541,7 @@ __global__ void dev_reduceLogImage1(unsigned int *count)
 	   	if (tid < s){
 	       	//sdata[tid] += sdata[tid + s];
 		   if (s_count[ tid ] < s_count[ s + tid ]){
-			   s_count[tid] = s_count[s+tid];
-
+			   s_count[tid] = s_count[ s+tid ];
 		   }
 	    	//s_argmax[tid] = s_vec[ s_argmax[s + tid] ] < s_vec[ s_argmax[tid] ]? s_argmax[tid]:;
 	   }
@@ -637,8 +635,6 @@ __global__ void dev_calcSum(MATRIX_TYPE *ww_sum, MATRIX_TYPE *data, unsigned int
 	}
 }
 
-
-
 extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRIX_TYPE *data,unsigned int *indices)
 {
 	dev_findWeightVector<<<22436/32, 32>>>(weight, data, indices);
@@ -647,4 +643,22 @@ extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRI
 
 //	dev_calcSum<<<IMAGE_MxN/32, 32>>>(ww_sum, data, indices);
 //	cudaThreadSynchronize();
+}
+
+__global__ void dev_makeVertexHistogram(unsigned int *vertex_histogram, unsigned int *count)
+{
+	int row = threadIdx.x + blockDim.x * blockIdx.x;
+	int col = threadIdx.y + blockDim.y * blockIdx.y;
+
+	vertex_histogram[row * (IMAGE_X * 3) + (col * 3)] = row;
+	vertex_histogram[row * (IMAGE_X * 3) + (col * 3) + 1] = col;
+	vertex_histogram[row * (IMAGE_X * 3) + (col * 3) + 2] = count[row + IMAGE_Y * col];
+
+}
+
+extern "C" void makeVertexHistogram(unsigned int *vertex_histogram, unsigned int *count)
+{
+	dim3 grid(IMAGE_Y/16, IMAGE_X/16);
+	dim3 block(16,16);
+	dev_makeVertexHistogram<<<grid,block>>>(vertex_histogram, count);
 }

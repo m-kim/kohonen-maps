@@ -21,6 +21,7 @@ extern "C" void findWeightVector(MATRIX_TYPE *ww_sum, MATRIX_TYPE *weight, MATRI
 extern "C" void expandLogImage(unsigned int *im, uint *ret);
 extern "C" void cuda_increaseLuminance(unsigned int *im);
 extern "C" void cuda_decreaseLuminance(unsigned int *im);
+extern "C" void makeVertexHistogram(unsigned int *vertex_histogram, unsigned int *count);
 
 SOM::SOM()
 {
@@ -74,12 +75,13 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 		uint *labels,
 		unsigned int *_device_regular_pbo,
 		uint *_device_split_pbo,
-		unsigned int *_device_log_pbo)
+		unsigned int *_device_log_pbo,
+		unsigned int *_device_hist_vbo)
 {
 	this->device_regular_pbo = _device_regular_pbo;
 	this->device_split_pbo = _device_split_pbo;
 	this->device_log_pbo = _device_log_pbo;
-
+	this->device_hist_vbo = _device_hist_vbo;
 
 	host_beta[0] = BETA;
 	host_beta[1] = BETA;
@@ -92,6 +94,7 @@ void SOM::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 	cutilSafeCall(cudaMemset(device_regular_pbo, 0, sizeof(unsigned int) * 512 * 512));
 	cutilSafeCall(cudaMemset(device_split_pbo, 0, sizeof(unsigned int) * 512 * 512));
 	cutilSafeCall(cudaMemset(device_log_pbo, 0, sizeof(unsigned char) * 512 * 512));
+	cutilSafeCall(cudaMemset(device_hist_vbo, 0, sizeof(unsigned int) * IMAGE_XxY * 3));
 
 	device_labels.row = data.row;
 	device_labels.col = 1;
@@ -243,14 +246,13 @@ int SOM::runCuda()
 
     if (RUN_DISPLAY){
         expandConstantImage(device_regular_pbo, device_constant_image.data);
-		unsigned int *tmp = (unsigned int *)malloc(sizeof(unsigned int) * 512 * 512);
-		cudaMemcpy(tmp, device_regular_pbo, sizeof(unsigned int) * 512 * 512, cudaMemcpyDeviceToHost);
 
 		//    for (int i=0; i<GENOMIC_DATA_COUNT; i++)
         //    	buildSplitImage<<<grid,block>>>(device_ret.data + i * IMAGE_MxN,device_labels.data,device_indices.data,i);
 
 		expandLogImage(device_log_pbo, device_ww_count.data);
         //	generateSplitImage(genome_index, device_split_pbo);
+		makeVertexHistogram(device_hist_vbo, device_ww_count.data);
     }
     if (SAVE_FILES){
     	std::ofstream file;

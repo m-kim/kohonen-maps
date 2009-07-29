@@ -19,11 +19,13 @@ public:
 			cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
 			cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
 			cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
+	       	cutilSafeCall(cudaGLUnmapBufferObject(hist_vbo) );
 		}
 	}
 	uint *d_split_output;
 	uchar4 *d_regular_output;
 	unsigned int *d_log_output;
+	unsigned int *d_hist_output;
 
 protected:
 	void initializeGL();
@@ -34,9 +36,12 @@ private:
 	GLuint split_pbo, log_pbo;          // OpenGL pixel buffer object
 	GLuint pbo;
 	GLuint displayRegTex, displaySplitTex, display_log_tex;
+	GLuint hist_vbo;
 	int width, height;
 	void initLogPBO();
 	void initPBO();
 	void initSplitPBO();
+
+	void initVBO();
 };
 #endif
