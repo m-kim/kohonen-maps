@@ -90,6 +90,7 @@ extern "C" void setup(int VECTOR_SIZE, int DATA_SIZE)
 	cutilSafeCall(cudaMemcpyToSymbol(device_vector_size, &VECTOR_SIZE, sizeof(unsigned int), 0));
 	cutilSafeCall(cudaMemcpyToSymbol(device_data_size, &DATA_SIZE, sizeof(unsigned int), 0));
 }
+
 extern "C" void safeMemset(void *ptr, char value, unsigned int size)
 {
 	cutilSafeCall(cudaMemset(ptr, value, size));
@@ -650,10 +651,9 @@ __global__ void dev_makeVertexHistogram(unsigned int *vertex_histogram, unsigned
 	int row = threadIdx.x + blockDim.x * blockIdx.x;
 	int col = threadIdx.y + blockDim.y * blockIdx.y;
 
-	vertex_histogram[row * (IMAGE_X * 3) + (col * 3)] = row;
-	vertex_histogram[row * (IMAGE_X * 3) + (col * 3) + 1] = col;
-	vertex_histogram[row * (IMAGE_X * 3) + (col * 3) + 2] = count[row + IMAGE_Y * col];
-
+	vertex_histogram[3 * (row * IMAGE_X + col)] = row;
+	vertex_histogram[3 * (row * IMAGE_X + col) + 1] = col;
+	vertex_histogram[3 * (row * IMAGE_X + col) + 2] = count[row + IMAGE_Y * col];
 }
 
 extern "C" void makeVertexHistogram(unsigned int *vertex_histogram, unsigned int *count)

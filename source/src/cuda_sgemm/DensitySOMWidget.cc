@@ -172,7 +172,7 @@ void DensitySOMWidget::resizeGL( int x, int y )
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0.0, 16, 0.0, 16, -10, 10.0);
+    glOrtho(0.0, 256, 0.0, 256, 0, 256.0);
 }
 
 void DensitySOMWidget::paintGL()
@@ -235,7 +235,7 @@ void DensitySOMWidget::paintGL()
 //	glTexCoord2f(0    , 0     );  glVertex2f(0, 2);
 //	glEnd();
 //	glDisable(GL_TEXTURE_TYPE);
-	glPointSize(3);
+//	glPointSize(3);
 	glColor3f(1,0,0);
 
 	glBindBufferARB(GL_ARRAY_BUFFER, hist_vbo);         // for vertex coordinates
@@ -244,9 +244,16 @@ void DensitySOMWidget::paintGL()
 	glEnableClientState(GL_VERTEX_ARRAY);                 // activate vertex coords array
 	glVertexPointer(3, GL_INT, 0, 0);                   // last param is offset, not ptr
 
+	glPushMatrix();
+	glTranslatef(64,64, -128);
+    glRotatef(rot_x, 1.0f, 0.0f, 0.0f);
+    glRotatef(rot_y, 0.0f, 1.0f, 0.0f);
+    glRotatef(rot_z, 0.0f, 0.0f, 1.0f);
 	// draw 6 quads using offset of index array
 	//glDrawElements(GL_POINTS, 3, GL_INT, 0);
-	glDrawArrays(GL_POINTS, 0, 27);
+    glScalef(1,1,.5);
+	glDrawArrays(GL_POINTS, 0, IMAGE_XxY * 3);
+	glPopMatrix();
 	glDisableClientState(GL_VERTEX_ARRAY);                // deactivate vertex array
 
 	// bind with 0, so, switch back to normal pointer operation
@@ -277,4 +284,24 @@ void DensitySOMWidget::keyPressEvent( QKeyEvent *e )
 	}
 
 	QGLWidget::updateGL();
+}
+
+
+void DensitySOMWidget::mousePressEvent(QMouseEvent *e)
+{
+    anchor = e->pos();
+}
+
+void DensitySOMWidget::mouseMoveEvent(QMouseEvent *e)
+{
+    QPoint diff = e->pos() - anchor;
+    if (e->buttons() & Qt::LeftButton) {
+        rot_x += diff.y()/5.0f;
+        rot_y += diff.x()/5.0f;
+    } else if (e->buttons() & Qt::RightButton) {
+        rot_z += diff.x()/5.0f;
+    }
+
+    anchor = e->pos();
+   	QGLWidget::updateGL();
 }

@@ -32,6 +32,8 @@ protected:
 	void resizeGL( int width, int height );
 	void paintGL();
 	void keyPressEvent( QKeyEvent *e );
+    void mousePressEvent(QMouseEvent *);
+    void mouseMoveEvent(QMouseEvent *);
 private:
 	GLuint split_pbo, log_pbo;          // OpenGL pixel buffer object
 	GLuint pbo;
@@ -43,5 +45,8 @@ private:
 	void initSplitPBO();
 
 	void initVBO();
+
+    QPoint anchor;
+    float rot_x, rot_y, rot_z;
 };
 #endif
