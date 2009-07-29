@@ -7,11 +7,39 @@
 #include "DensitySOMWidget.h"
 #include "Matrix.h"
 #include "SOM.h"
+#include <string>
 
 #include <QtGui/QKeyEvent>
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
+const char *vert_shader_prog = "void main() \
+	{\
+		gl_Position = ftransform();\
+	}\
+";
 
+const char *geo_shader_prog =  "#version 120\n\
+	#extension GL_EXT_geometry_shader4 : enable\n\
+	void main(void)\
+	{\
+		int i;\
+		for(i=0; i< gl_VerticesIn; i++){\
+			gl_Position = gl_PositionIn[i];\
+			EmitVertex();\
+		}\
+		EndPrimitive();\
+		for(i=0; i< gl_VerticesIn; i++){\
+			gl_Position = gl_PositionIn[i];\
+			gl_Position.xy = gl_Position.yx;\
+			EmitVertex();\
+		}\
+		EndPrimitive();\
+	};";
+
+const char *frag_shader_prog = "void main()\
+	{\
+		gl_FragColor = vec4(0.0,0.0,1.0,1.0);\
+	}";
 
 DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *name):QtSOMWidget(0, parent, name)
 {
@@ -25,6 +53,11 @@ DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *na
 
 	width = 1024;
 	height = 1024;
+
+	vert_shader = 0;
+	frag_shader = 0;
+	geo_shader = 0;
+	prog = 0;
 }
 
 void DensitySOMWidget::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
@@ -160,6 +193,37 @@ void DensitySOMWidget::initializeGL()
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_hist_output, hist_vbo) );
+
+	vert_shader = glCreateShader(GL_VERTEX_SHADER);
+	frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
+	geo_shader = glCreateShader(GL_GEOMETRY_SHADER_EXT);
+
+	printf("%s\n", vert_shader_prog);
+	glShaderSource(vert_shader, 1, &vert_shader_prog, NULL);
+	glShaderSource(frag_shader, 1, &frag_shader_prog, NULL);
+	glShaderSource(geo_shader, 1, &geo_shader_prog, NULL);
+
+	glCompileShader(vert_shader);
+	glCompileShader(frag_shader);
+	glCompileShader(geo_shader);
+
+	prog = glCreateProgram();
+
+	glAttachShader(prog, vert_shader);
+	glAttachShader(prog, frag_shader);
+	glAttachShader(prog, geo_shader);
+
+	glProgramParameteriEXT(prog,GL_GEOMETRY_INPUT_TYPE_EXT,GL_POINTS);
+	glProgramParameteriEXT(prog,GL_GEOMETRY_OUTPUT_TYPE_EXT,GL_QUADS);
+
+	glLinkProgram(prog);
+	glUseProgram(prog);
+
+	printShaderInfoLog(vert_shader);
+	printShaderInfoLog(frag_shader);
+	printShaderInfoLog(geo_shader);
+
+	printProgramInfoLog(prog);
 }
 
 void DensitySOMWidget::resizeGL( int x, int y )
@@ -172,7 +236,7 @@ void DensitySOMWidget::resizeGL( int x, int y )
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0.0, 256, 0.0, 256, 0, 256.0);
+    glOrtho(-256, 256, -256, 256, 0, 256.0);
 }
 
 void DensitySOMWidget::paintGL()

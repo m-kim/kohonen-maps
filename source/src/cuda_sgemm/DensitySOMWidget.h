@@ -1,3 +1,4 @@
+
 #ifndef DENSITYSOMWIDGET_H
 #define DENSITYSOMWIDGET_H
 #include "SOM.h"
@@ -48,5 +49,7 @@ private:
 
     QPoint anchor;
     float rot_x, rot_y, rot_z;
+
+    GLuint vert_shader, frag_shader, geo_shader,prog;
 };
 #endif

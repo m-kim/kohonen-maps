@@ -33,3 +33,4 @@ void QtSOMWidget::timeOutSlot()
 {
 	timeOut();
 }
+
