@@ -15,6 +15,7 @@
 const char *vert_shader_prog = "void main() \n\
 	{\n\
 		gl_Position = gl_Vertex;\n\
+		gl_FrontColor = gl_Color;\n\
 	}\n\
 ";
 
@@ -22,12 +23,13 @@ const char *geo_shader_prog =  "#version 120\n\
 	#extension GL_EXT_geometry_shader4 : enable\n\
 	void main(void)\n\
 	{\n\
+		gl_FrontColor = gl_FrontColorIn[0];\n\
 		int i;\n\
 //		for(i=0; i< gl_VerticesIn; i++){\n\
 //			gl_Position = gl_ModelViewProjectionMatrix * gl_PositionIn[i];\n\
 //			EmitVertex();\n\
 //		}\n\
-		EndPrimitive();\n\
+//		EndPrimitive();\n\
 		for(i=0; i< gl_VerticesIn; i++){\n\
 			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,0,0);\n\
 			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
@@ -73,11 +75,11 @@ const char *geo_shader_prog =  "#version 120\n\
 			EmitVertex();\n\
 		}\n\
 		EndPrimitive();\n\
-	};";
+	}";
 
 const char *frag_shader_prog = "void main()\
 	{\
-		gl_FragColor = vec4(1.0,0.0,0.0,1.0);\
+		gl_FragColor = gl_Color;\
 	}";
 
 DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *name):QtSOMWidget(0, parent, name)
@@ -395,7 +397,6 @@ void DensitySOMWidget::keyPressEvent( QKeyEvent *e )
 
 	QGLWidget::updateGL();
 }
-
 
 void DensitySOMWidget::mousePressEvent(QMouseEvent *e)
 {
