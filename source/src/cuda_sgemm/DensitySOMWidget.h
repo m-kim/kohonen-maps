@@ -44,8 +44,8 @@ private:
 	void initLogPBO();
 	void initPBO();
 	void initSplitPBO();
-
 	void initVBO();
+	void createShader();
 
     QPoint anchor;
     float rot_x, rot_y, rot_z;

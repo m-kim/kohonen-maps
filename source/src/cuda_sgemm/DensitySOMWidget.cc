@@ -12,33 +12,33 @@
 #include <QtGui/QKeyEvent>
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
-const char *vert_shader_prog = "void main() \
-	{\
-		gl_Position = ftransform();\
-	}\
+const char *vert_shader_prog = "void main() \n\
+	{\n\
+		gl_Position = gl_Vertex;\n\
+	}\n\
 ";
 
 const char *geo_shader_prog =  "#version 120\n\
 	#extension GL_EXT_geometry_shader4 : enable\n\
-	void main(void)\
-	{\
-		int i;\
-		for(i=0; i< gl_VerticesIn; i++){\
-			gl_Position = gl_PositionIn[i];\
-			EmitVertex();\
-		}\
-		EndPrimitive();\
-		for(i=0; i< gl_VerticesIn; i++){\
-			gl_Position = gl_PositionIn[i];\
-			gl_Position.xy = gl_Position.yx;\
-			EmitVertex();\
-		}\
-		EndPrimitive();\
+	void main(void)\n\
+	{\n\
+		int i;\n\
+		for(i=0; i< gl_VerticesIn; i++){\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_PositionIn[i];\n\
+			EmitVertex();\n\
+		}\n\
+		EndPrimitive();\n\
+		for(i=0; i< gl_VerticesIn; i++){\n\
+			gl_Position = gl_PositionIn[i] + vec4(1,1,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+		}\n\
+		EndPrimitive();\n\
 	};";
 
 const char *frag_shader_prog = "void main()\
 	{\
-		gl_FragColor = vec4(0.0,0.0,1.0,1.0);\
+		gl_FragColor = vec4(1.0,0.0,0.0,1.0);\
 	}";
 
 DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *name):QtSOMWidget(0, parent, name)
@@ -182,23 +182,12 @@ void DensitySOMWidget::initSplitPBO()
     glBindTexture  (GL_TEXTURE_TYPE, 0);
 
 }
-void DensitySOMWidget::initializeGL()
+void DensitySOMWidget::createShader()
 {
-	initPBO();
-	initLogPBO();
-	initSplitPBO();
-	initVBO();
-
-	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
-	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
-	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
-	cutilSafeCall( cudaGLMapBufferObject((void**)&d_hist_output, hist_vbo) );
-
 	vert_shader = glCreateShader(GL_VERTEX_SHADER);
 	frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
 	geo_shader = glCreateShader(GL_GEOMETRY_SHADER_EXT);
 
-	printf("%s\n", vert_shader_prog);
 	glShaderSource(vert_shader, 1, &vert_shader_prog, NULL);
 	glShaderSource(frag_shader, 1, &frag_shader_prog, NULL);
 	glShaderSource(geo_shader, 1, &geo_shader_prog, NULL);
@@ -214,16 +203,34 @@ void DensitySOMWidget::initializeGL()
 	glAttachShader(prog, geo_shader);
 
 	glProgramParameteriEXT(prog,GL_GEOMETRY_INPUT_TYPE_EXT,GL_POINTS);
-	glProgramParameteriEXT(prog,GL_GEOMETRY_OUTPUT_TYPE_EXT,GL_QUADS);
+	glProgramParameteriEXT(prog,GL_GEOMETRY_OUTPUT_TYPE_EXT,GL_POINTS);
+	int temp;
+	glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_VERTICES_EXT,&temp);
+	glProgramParameteriEXT(prog,GL_GEOMETRY_VERTICES_OUT_EXT,temp);
 
 	glLinkProgram(prog);
 	glUseProgram(prog);
 
-	printShaderInfoLog(vert_shader);
-	printShaderInfoLog(frag_shader);
-	printShaderInfoLog(geo_shader);
+	if (som.DEBUG_PRINT){
+		printShaderInfoLog(vert_shader);
+		printShaderInfoLog(frag_shader);
+		printShaderInfoLog(geo_shader);
 
-	printProgramInfoLog(prog);
+		printProgramInfoLog(prog);
+	}
+}
+void DensitySOMWidget::initializeGL()
+{
+	initPBO();
+	initLogPBO();
+	initSplitPBO();
+	initVBO();
+
+	cutilSafeCall( cudaGLMapBufferObject((void**)&d_regular_output, pbo) );
+	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
+	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
+	cutilSafeCall( cudaGLMapBufferObject((void**)&d_hist_output, hist_vbo) );
+	createShader();
 }
 
 void DensitySOMWidget::resizeGL( int x, int y )
@@ -236,7 +243,7 @@ void DensitySOMWidget::resizeGL( int x, int y )
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-256, 256, -256, 256, 0, 256.0);
+    glOrtho(0, 256, 0, 256, 0, 256.0);
 }
 
 void DensitySOMWidget::paintGL()
