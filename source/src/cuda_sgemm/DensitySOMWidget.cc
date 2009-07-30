@@ -23,13 +23,52 @@ const char *geo_shader_prog =  "#version 120\n\
 	void main(void)\n\
 	{\n\
 		int i;\n\
-		for(i=0; i< gl_VerticesIn; i++){\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_PositionIn[i];\n\
-			EmitVertex();\n\
-		}\n\
+//		for(i=0; i< gl_VerticesIn; i++){\n\
+//			gl_Position = gl_ModelViewProjectionMatrix * gl_PositionIn[i];\n\
+//			EmitVertex();\n\
+//		}\n\
 		EndPrimitive();\n\
 		for(i=0; i< gl_VerticesIn; i++){\n\
-			gl_Position = gl_PositionIn[i] + vec4(1,1,0,0);\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,-gl_PositionIn[i].z,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,-.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,-.5,-gl_PositionIn[i].z,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,.5,-gl_PositionIn[i].z,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,.5,-gl_PositionIn[i].z,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,-gl_PositionIn[i].z,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(-.5,.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,-.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,.5,0,0);\n\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
+			EmitVertex();\n\
+			gl_Position = gl_PositionIn[i] + vec4(.5,.5,0,0);\n\
 			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
 			EmitVertex();\n\
 		}\n\
@@ -203,7 +242,7 @@ void DensitySOMWidget::createShader()
 	glAttachShader(prog, geo_shader);
 
 	glProgramParameteriEXT(prog,GL_GEOMETRY_INPUT_TYPE_EXT,GL_POINTS);
-	glProgramParameteriEXT(prog,GL_GEOMETRY_OUTPUT_TYPE_EXT,GL_POINTS);
+	glProgramParameteriEXT(prog,GL_GEOMETRY_OUTPUT_TYPE_EXT,GL_TRIANGLE_STRIP);
 	int temp;
 	glGetIntegerv(GL_MAX_GEOMETRY_OUTPUT_VERTICES_EXT,&temp);
 	glProgramParameteriEXT(prog,GL_GEOMETRY_VERTICES_OUT_EXT,temp);
