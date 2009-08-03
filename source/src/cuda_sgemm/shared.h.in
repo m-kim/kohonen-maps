@@ -13,7 +13,7 @@
 
 typedef float MATRIX_TYPE;
 
-//#define SRC_PATH "${PROJECT_SOURCE_DIR}"
+#define SRC_PATH "${PROJECT_SOURCE_DIR}"
 
 #define CONFIG_PATH "${CMAKE_SOURCE_DIR}/../"
 #define LABEL_COUNT 8

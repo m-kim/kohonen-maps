@@ -16,7 +16,6 @@
 #include <iostream>
 #include <fstream>
 
-
 #include <cutil_inline.h>
 #include <cutil_gl_inline.h>
 

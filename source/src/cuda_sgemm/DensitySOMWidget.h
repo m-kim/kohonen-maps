@@ -1,9 +1,9 @@
-
 #ifndef DENSITYSOMWIDGET_H
 #define DENSITYSOMWIDGET_H
 #include "SOM.h"
 #include "QtSOMWidget.h"
 #include "Matrix.h"
+#include <sstream>
 
 class DensitySOMWidget : public QtSOMWidget
 {
@@ -41,15 +41,17 @@ private:
 	GLuint displayRegTex, displaySplitTex, display_log_tex;
 	GLuint hist_vbo;
 	int width, height;
-	void initLogPBO();
-	void initPBO();
-	void initSplitPBO();
-	void initVBO();
-	void createShader();
-
     QPoint anchor;
     float rot_x, rot_y, rot_z;
 
     GLuint vert_shader, frag_shader, geo_shader,prog;
+	const char* geo_shader_prog, *frag_shader_prog;
+
+    void initLogPBO();
+	void initPBO();
+	void initSplitPBO();
+	void initVBO();
+	void createShader();
+	const char * readShader(std::string name);
 };
 #endif

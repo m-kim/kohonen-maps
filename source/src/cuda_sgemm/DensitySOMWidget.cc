@@ -8,6 +8,9 @@
 #include "Matrix.h"
 #include "SOM.h"
 #include <string>
+#include <sstream>
+#include <iostream>
+#include <fstream>
 
 #include <QtGui/QKeyEvent>
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
@@ -18,69 +21,6 @@ const char *vert_shader_prog = "void main() \n\
 		gl_FrontColor = gl_Color;\n\
 	}\n\
 ";
-
-const char *geo_shader_prog =  "#version 120\n\
-	#extension GL_EXT_geometry_shader4 : enable\n\
-	void main(void)\n\
-	{\n\
-		gl_FrontColor = gl_FrontColorIn[0];\n\
-		int i;\n\
-//		for(i=0; i< gl_VerticesIn; i++){\n\
-//			gl_Position = gl_ModelViewProjectionMatrix * gl_PositionIn[i];\n\
-//			EmitVertex();\n\
-//		}\n\
-//		EndPrimitive();\n\
-		for(i=0; i< gl_VerticesIn; i++){\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,-gl_PositionIn[i].z,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,-.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,-.5,-gl_PositionIn[i].z,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,.5,-gl_PositionIn[i].z,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,.5,-gl_PositionIn[i].z,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,-gl_PositionIn[i].z,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,-.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(-.5,.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,-.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-			gl_Position = gl_PositionIn[i] + vec4(.5,.5,0,0);\n\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Position;\n\
-			EmitVertex();\n\
-		}\n\
-		EndPrimitive();\n\
-	}";
-
-const char *frag_shader_prog = "void main()\
-	{\
-		gl_FragColor = gl_Color;\
-	}";
 
 DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *name):QtSOMWidget(0, parent, name)
 {
@@ -99,8 +39,37 @@ DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *na
 	frag_shader = 0;
 	geo_shader = 0;
 	prog = 0;
+	geo_shader_prog = readShader("hist.geo");
+	frag_shader_prog = readShader("hist.frag");
 }
 
+const char* DensitySOMWidget::readShader(std::string name)
+{
+	std::ifstream file;
+	std::stringstream filename;
+	filename << SRC_PATH << "/src/cuda_sgemm/" << name;
+
+	file.open(filename.str().c_str(), std::ifstream::in);
+	std::string str;
+	std::stringstream complete_file;
+	int line_count = 0;
+	int row = 0;
+	if (!file.good()){
+		std::cout << "Geometry shader file missing!  " << filename.str() << std::endl;
+		exit(-1);
+	}
+	file.clear();
+	file.seekg(0);
+
+	while (file.good()){
+		getline(file, str);
+		complete_file << str << "\n";
+	}
+	complete_file << "\0";
+	char *tmp = new char[complete_file.str().length()];
+	memcpy(tmp, complete_file.str().c_str(), sizeof(char) * complete_file.str().length());
+	return tmp;
+}
 void DensitySOMWidget::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 		ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &data,
 		unsigned int *labels)
@@ -262,6 +231,9 @@ void DensitySOMWidget::createShader()
 }
 void DensitySOMWidget::initializeGL()
 {
+	glEnable (GL_DEPTH_TEST);
+	glEnable (GL_LIGHTING);
+	glEnable (GL_LIGHT0);
 	initPBO();
 	initLogPBO();
 	initSplitPBO();
@@ -289,6 +261,10 @@ void DensitySOMWidget::resizeGL( int x, int y )
 
 void DensitySOMWidget::paintGL()
 {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	//gluLookAt(0,0,1, 0,0,0, 0,1,0);
 	if (som.RUN_CYCLE && som.counter < som.host_T){
 		som.counter++;
 		som.updateWeights();
@@ -296,8 +272,6 @@ void DensitySOMWidget::paintGL()
 		som.updateConvergence();
 	}
 
-	// display results
-	glClear(GL_COLOR_BUFFER_BIT);
 
 //	// download image from PBO to OpenGL texture
 //	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
@@ -348,6 +322,8 @@ void DensitySOMWidget::paintGL()
 //	glEnd();
 //	glDisable(GL_TEXTURE_TYPE);
 //	glPointSize(3);
+
+
 	glColor3f(1,0,0);
 
 	glBindBufferARB(GL_ARRAY_BUFFER, hist_vbo);         // for vertex coordinates
@@ -406,6 +382,7 @@ void DensitySOMWidget::mousePressEvent(QMouseEvent *e)
 void DensitySOMWidget::mouseMoveEvent(QMouseEvent *e)
 {
     QPoint diff = e->pos() - anchor;
+
     if (e->buttons() & Qt::LeftButton) {
         rot_x += diff.y()/5.0f;
         rot_y += diff.x()/5.0f;
