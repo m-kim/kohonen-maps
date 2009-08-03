@@ -42,7 +42,7 @@ private:
 	GLuint hist_vbo;
 	int width, height;
     QPoint anchor;
-    float rot_x, rot_y, rot_z;
+    float rot_x, rot_y, rot_z, scale;
 
     GLuint vert_shader, frag_shader, geo_shader,prog;
 	const char* geo_shader_prog, *frag_shader_prog;

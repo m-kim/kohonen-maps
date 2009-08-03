@@ -41,6 +41,8 @@ DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *na
 	prog = 0;
 	geo_shader_prog = readShader("hist.geo");
 	frag_shader_prog = readShader("hist.frag");
+
+	scale = 1;
 }
 
 const char* DensitySOMWidget::readShader(std::string name)
@@ -58,15 +60,13 @@ const char* DensitySOMWidget::readShader(std::string name)
 		std::cout << "Geometry shader file missing!  " << filename.str() << std::endl;
 		exit(-1);
 	}
-	file.clear();
-	file.seekg(0);
-
 	while (file.good()){
 		getline(file, str);
 		complete_file << str << "\n";
 	}
 	complete_file << "\0";
 	char *tmp = new char[complete_file.str().length()];
+	memset(tmp, 0, sizeof(char) * complete_file.str().length());
 	memcpy(tmp, complete_file.str().c_str(), sizeof(char) * complete_file.str().length());
 
 	file.close();
@@ -341,7 +341,7 @@ void DensitySOMWidget::paintGL()
     glRotatef(rot_z, 0.0f, 0.0f, 1.0f);
 	// draw 6 quads using offset of index array
 	//glDrawElements(GL_POINTS, 3, GL_INT, 0);
-    glScalef(1,1,.5);
+    glScalef(scale * 1,scale * 1, scale * .5);
 	glDrawArrays(GL_POINTS, 0, IMAGE_XxY * 3);
 	glPopMatrix();
 	glDisableClientState(GL_VERTEX_ARRAY);                // deactivate vertex array
@@ -390,7 +390,10 @@ void DensitySOMWidget::mouseMoveEvent(QMouseEvent *e)
         rot_y += diff.x()/5.0f;
     } else if (e->buttons() & Qt::RightButton) {
         rot_z += diff.x()/5.0f;
-    }
+    } else if (e->buttons() & Qt::MidButton){
+    	scale -= diff.y()/5.0f;
+    	std::cout << scale << std::endl;
+	}
 
     anchor = e->pos();
    	QGLWidget::updateGL();
