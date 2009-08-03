@@ -68,6 +68,8 @@ const char* DensitySOMWidget::readShader(std::string name)
 	complete_file << "\0";
 	char *tmp = new char[complete_file.str().length()];
 	memcpy(tmp, complete_file.str().c_str(), sizeof(char) * complete_file.str().length());
+
+	file.close();
 	return tmp;
 }
 void DensitySOMWidget::setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
