@@ -67,7 +67,6 @@ const char* DensitySOMWidget::readShader(std::string name)
 
 	char *tmp = new char[complete_file.str().length() + 1];
 	strcpy(tmp, complete_file.str().c_str());
-	std::cout << tmp;
 	file.close();
 	return tmp;
 }
@@ -327,6 +326,8 @@ void DensitySOMWidget::paintGL()
 
 	glColor3f(1,0,0);
 
+	float light[] = {0,0,1};
+	glLightfv(GL_LIGHT0, GL_POSITION, light);
 	glBindBufferARB(GL_ARRAY_BUFFER, hist_vbo);         // for vertex coordinates
 
 	// do same as vertex array except pointer
@@ -391,7 +392,6 @@ void DensitySOMWidget::mouseMoveEvent(QMouseEvent *e)
         rot_z += diff.x()/5.0f;
     } else if (e->buttons() & Qt::MidButton){
     	scale -= diff.y()/5.0f;
-    	std::cout << scale << std::endl;
 	}
 
     anchor = e->pos();
