@@ -40,8 +40,9 @@ DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *na
 	geo_shader = 0;
 	prog = 0;
 	geo_shader_prog = readShader("hist.geo");
+	std::cout << geo_shader_prog;
 	frag_shader_prog = readShader("hist.frag");
-
+	std::cout << frag_shader_prog;
 	scale = 1;
 }
 
@@ -64,7 +65,7 @@ const char* DensitySOMWidget::readShader(std::string name)
 		getline(file, str);
 		complete_file << str << "\n";
 	}
-	complete_file << "\0";
+
 	char *tmp = new char[complete_file.str().length()];
 	memset(tmp, 0, sizeof(char) * complete_file.str().length());
 	memcpy(tmp, complete_file.str().c_str(), sizeof(char) * complete_file.str().length());
