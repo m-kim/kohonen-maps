@@ -45,7 +45,7 @@ private:
     float rot_x, rot_y, rot_z, scale;
 
     GLuint vert_shader, frag_shader, geo_shader,prog;
-	const char* geo_shader_prog, *frag_shader_prog;
+	const char* geo_shader_prog, *frag_shader_prog, *vert_shader_prog;
 
     void initLogPBO();
 	void initPBO();

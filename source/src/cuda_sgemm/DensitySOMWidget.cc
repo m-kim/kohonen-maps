@@ -15,12 +15,6 @@
 #include <QtGui/QKeyEvent>
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
-const char *vert_shader_prog = "void main() \n\
-	{\n\
-		gl_Position = gl_Vertex;\n\
-		gl_FrontColor = gl_Color;\n\
-	}\n\
-";
 
 DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *name):QtSOMWidget(0, parent, name)
 {
@@ -41,6 +35,7 @@ DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *na
 	prog = 0;
 	geo_shader_prog = readShader("hist.geo");
 	frag_shader_prog = readShader("hist.frag");
+	vert_shader_prog = readShader("hist.vert");
 	scale = 1;
 }
 
@@ -232,8 +227,8 @@ void DensitySOMWidget::createShader()
 void DensitySOMWidget::initializeGL()
 {
 	glEnable (GL_DEPTH_TEST);
-	glEnable (GL_LIGHTING);
-	glEnable (GL_LIGHT0);
+//	glEnable (GL_LIGHTING);
+//	glEnable (GL_LIGHT0);
 	initPBO();
 	initLogPBO();
 	initSplitPBO();
@@ -243,7 +238,7 @@ void DensitySOMWidget::initializeGL()
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_hist_output, hist_vbo) );
-	createShader();
+	//createShader();
 }
 
 void DensitySOMWidget::resizeGL( int x, int y )
@@ -273,13 +268,14 @@ void DensitySOMWidget::paintGL()
 	}
 
 
-//	// download image from PBO to OpenGL texture
+	// download image from PBO to OpenGL texture
 //	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
 //	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
 //	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
 //	glTexSubImage2D(GL_TEXTURE_TYPE,0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+
 //	glEnable(GL_TEXTURE_TYPE);
-//
 //	// draw textured quad
 //	glDisable(GL_DEPTH_TEST);
 //	glBegin(GL_QUADS);
@@ -323,32 +319,47 @@ void DensitySOMWidget::paintGL()
 //	glDisable(GL_TEXTURE_TYPE);
 //	glPointSize(3);
 
-
 	glColor3f(1,0,0);
 
 	float light[] = {0,0,1};
 	glLightfv(GL_LIGHT0, GL_POSITION, light);
+//	int *tmp = new int[IMAGE_XxY * 3];
+//	for (int i=0; i<IMAGE_XxY*3; i+=3){
+//		tmp[i] = i;
+//		tmp[i + 1] = i % 32;
+//		tmp[i + 2] = i + tmp[i + 1];
+//	}
 	glBindBufferARB(GL_ARRAY_BUFFER, hist_vbo);         // for vertex coordinates
-
-	// do same as vertex array except pointer
 	glEnableClientState(GL_VERTEX_ARRAY);                 // activate vertex coords array
-	glVertexPointer(3, GL_INT, 0, 0);                   // last param is offset, not ptr
+	glVertexPointer(3, GL_INT, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, pbo);
+	unsigned char *tmp1 = new unsigned char[IMAGE_XxY * 3];
+//	for (int i=0; i<IMAGE_XxY*3; i+=3){
+//		tmp1[i] = 0;
+//		tmp1[i + 1] = 255;
+//		tmp1[i + 2] = 0;
+//	}
+	glEnableClientState(GL_COLOR_ARRAY);
+	glColorPointer(3, GL_UNSIGNED_BYTE, 0, tmp1);
+	glBindBuffer(GL_COLOR_ARRAY, 0);
 
 	glPushMatrix();
 	glTranslatef(64,64, -128);
     glRotatef(rot_x, 1.0f, 0.0f, 0.0f);
     glRotatef(rot_y, 0.0f, 1.0f, 0.0f);
     glRotatef(rot_z, 0.0f, 0.0f, 1.0f);
-	// draw 6 quads using offset of index array
-	//glDrawElements(GL_POINTS, 3, GL_INT, 0);
+
     glScalef(scale * 1,scale * 1, scale * .5);
 	glDrawArrays(GL_POINTS, 0, IMAGE_XxY * 3);
 	glPopMatrix();
-	glDisableClientState(GL_VERTEX_ARRAY);                // deactivate vertex array
+	glDisableClientState(GL_VERTEX_ARRAY);
+	glDisableClientState(GL_COLOR_ARRAY);
 
+	delete tmp1;
 	// bind with 0, so, switch back to normal pointer operation
 	glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-
 }
 
 void DensitySOMWidget::keyPressEvent( QKeyEvent *e )

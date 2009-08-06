@@ -43,6 +43,8 @@ SOM::SOM()
 	EXPANSION = 4;
 
 	SAVE_FILES = 0;
+
+	total_time = 0;
 }
 void SOM::generateSplitImage(int g_index, unsigned int * device_split_pbo)
 {
