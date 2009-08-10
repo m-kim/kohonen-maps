@@ -1,37 +1,5 @@
 #version 120
 #extension GL_EXT_geometry_shader4 : enable
-void drawTop(vec4 position)
-{
-    vec4 v1, v2, v3, tmp;
-    vec3 v_n1, v_n2;
-		vec3 normal;
-		v1 = position + vec4(-.5,-.5,0,0);
-		v2 = position + vec4(-.5,.5,0,0);
-		v3 = position + vec4(.5,-.5,0,0);
-		v_n1 = v3.xyz - v2.xyz;
-		v_n2 = v1.xyz - v2.xyz;
-		normal = normalize(cross(v_n2, v_n1));
-		gl_Position = v1;
-		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
-    EmitVertex();
-		gl_Position = v2;
-		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
-    EmitVertex();
-		gl_Position = v3;
-		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
-    EmitVertex();
-		v1 = v2;
-		v2 = v3;
-		v3 = position + vec4(.5,.5,0,0);
-		v_n1 = v3.xyz - v2.xyz;
-		v_n2 = v1.xyz - v2.xyz;
-		normal = normalize(cross(v_n1, v_n2));
-		gl_Position = v3; 
-		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
-		EmitVertex();
-
-		EndPrimitive();
-}
 
 void setLight(vec4 v2, vec3 normal)
 {
@@ -51,29 +19,69 @@ vec3 eye_normal, lightDir;
 		gl_FrontColor =  NdotL * diffuse + globalAmbient + ambient;
 }
 
+
+void drawTop(vec4 position)
+{
+    vec4 v1, v2, v3, tmp;
+    vec3 v_n1, v_n2;
+		vec3 normal;
+		tmp = vec4(64,64,0,0);
+		v1 = position + vec4(-.5,-.5,0,0);
+		v2 = position + vec4(-.5,.5,0,0);
+		v3 = position + vec4(.5,-.5,0,0);
+		v_n1 = v3.xyz - v2.xyz;
+		v_n2 = v1.xyz - v2.xyz;
+		normal = normalize(cross(v_n2, v_n1));
+		setLight(v2, normal);
+		gl_Position = v1  - tmp;
+		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
+    EmitVertex();
+		gl_Position = v2 - tmp;
+		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
+    EmitVertex();
+		gl_Position = v3 - tmp;
+		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
+    EmitVertex();
+		v1 = v2;
+		v2 = v3;
+		v3 = position + vec4(.5,.5,0,0);
+		v_n1 = v3.xyz - v2.xyz;
+		v_n2 = v1.xyz - v2.xyz;
+		normal = normalize(cross(v_n1, v_n2));
+		setLight(v2, normal);
+		gl_Position = v3 - tmp; 
+		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
+		EmitVertex();
+
+		EndPrimitive();
+}
+
 void main(void)
 {
   vec4 v1, v2, v3, tmp;
   vec3 v_n1, v_n2;
 	int i;
+	tmp = vec4(64,64,0,0);
+	
 	for(i=0; i< gl_VerticesIn; i++){
-		//drawTop(gl_PositionIn[i]);
+		drawTop(gl_PositionIn[i]);
 
 		gl_FrontColor = gl_FrontColorIn[i];
 		v1 = gl_PositionIn[i] + vec4(-.5,-.5,0,0);
 		v2 = gl_PositionIn[i] + vec4(-.5,-.5,-gl_PositionIn[i].z,0);
 		v3 = gl_PositionIn[i] + vec4(.5,-.5,0,0);
+		
 		v_n1 = v3.xyz - v2.xyz;
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,cross(v_n1, v_n2));
-    gl_Position = v1;
+    gl_Position = v1  - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
-		gl_Position = v2;
+		gl_Position = v2 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
-		gl_Position = v3;
+		gl_Position = v3 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
 
@@ -85,7 +93,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n2, v_n1)));
-		gl_Position = v3;
+		gl_Position = v3 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
 		
@@ -97,7 +105,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n1, v_n2)));
-		gl_Position = v3; 
+		gl_Position = v3 - tmp; 
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
     EmitVertex();
     
@@ -109,7 +117,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n2, v_n1)));
-		gl_Position = v3; 
+		gl_Position = v3 - tmp; 
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
     EmitVertex();
 
@@ -121,7 +129,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n1, v_n2)));
-		gl_Position = v3;
+		gl_Position = v3 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
 
@@ -133,7 +141,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n2, v_n1)));
-		gl_Position = v3;
+		gl_Position = v3 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
 
@@ -145,7 +153,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n1, v_n2)));
-		gl_Position = v3;
+		gl_Position = v3 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
     EmitVertex();
 
@@ -157,7 +165,7 @@ void main(void)
 		v_n2 = v1.xyz - v2.xyz;
 		
 		setLight(v2,normalize(cross(v_n2, v_n1)));
-		gl_Position = v3;
+		gl_Position = v3 - tmp;
 		gl_Position = gl_ModelViewProjectionMatrix * gl_Position;
 		EmitVertex();
 		EndPrimitive();
