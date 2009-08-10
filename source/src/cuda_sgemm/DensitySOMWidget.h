@@ -39,11 +39,13 @@ private:
     GLuint vert_shader, frag_shader, geo_shader,prog;
 	const char* geo_shader_prog, *frag_shader_prog, *vert_shader_prog;
 
+	static unsigned int shared_list_object;
     void initLogPBO();
 	void initPBO();
 	void initSplitPBO();
 	void initVBO();
 	void createShader();
 	const char * readShader(std::string name);
+	GLuint createListObject();
 };
 #endif

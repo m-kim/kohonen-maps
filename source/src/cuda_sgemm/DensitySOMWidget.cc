@@ -15,6 +15,7 @@
 #include <QtGui/QKeyEvent>
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
+unsigned int DensitySOMWidget::shared_list_object = 0;
 
 DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent,QGLWidget *shareWidget):QtSOMWidget(0, parent, shareWidget)
 {
@@ -238,7 +239,11 @@ void DensitySOMWidget::initializeGL()
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_hist_output, hist_vbo) );
-	createShader();
+
+	if (shared_list_object == 0){
+		shared_list_object = createListObject();
+	}
+	//createShader();
 }
 
 void DensitySOMWidget::resizeGL( int x, int y )
@@ -251,7 +256,7 @@ void DensitySOMWidget::resizeGL( int x, int y )
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0, 256, 0, 256, 0, 256.0);
+    glOrtho(0, 1, 0, 1, 0, 1.0);
 }
 
 void DensitySOMWidget::paintGL()
@@ -267,87 +272,35 @@ void DensitySOMWidget::paintGL()
 		som.updateConvergence();
 	}
 
+	glCallList(shared_list_object);
 
+	std::cout << gluErrorString(glGetError()) << std::endl;
 	// download image from PBO to OpenGL texture
-//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-//	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
-//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-//	glTexSubImage2D(GL_TEXTURE_TYPE,0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
 
-//	glEnable(GL_TEXTURE_TYPE);
-//	// draw textured quad
-//	glDisable(GL_DEPTH_TEST);
-//	glBegin(GL_QUADS);
-//	glTexCoord2f(0    , height/2);  glVertex2f(0, 0);
-//	glTexCoord2f(width/2, height/2);  glVertex2f(1, 0);
-//	glTexCoord2f(width/2, 0     );  glVertex2f(1, 1);
-//	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
-//	glEnd();
-//	glDisable(GL_TEXTURE_TYPE);
+//	glColor3f(1,0,0);
 //
-//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
-//	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
-//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-//	glTexSubImage2D(GL_TEXTURE_TYPE,
-//					0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-//	glEnable(GL_TEXTURE_TYPE);
+//	float light[] = {0,0,1};
+//	glLightfv(GL_LIGHT0, GL_POSITION, light);
+//	glBindBufferARB(GL_ARRAY_BUFFER, hist_vbo);         // for vertex coordinates
+//	glEnableClientState(GL_VERTEX_ARRAY);                 // activate vertex coords array
+//	glVertexPointer(3, GL_INT, 0, 0);
+//	glBindBuffer(GL_ARRAY_BUFFER, 0);
 //
-//	// draw textured quad
-//	glBegin(GL_QUADS);
-//	glTexCoord2f(0    , height/2);  glVertex2f(1, 0);
-//	glTexCoord2f(width/2, height/2);  glVertex2f(2, 0);
-//	glTexCoord2f(width/2, 0     );  glVertex2f(2, 1);
-//	glTexCoord2f(0    , 0     );  glVertex2f(1, 1);
-//	glEnd();
-//	glDisable(GL_TEXTURE_TYPE);
+//	glPushMatrix();
+//	glTranslatef(64,64, -128);
+//    glRotatef(rot_x, 1.0f, 0.0f, 0.0f);
+//    glRotatef(rot_y, 0.0f, 1.0f, 0.0f);
+//    glRotatef(rot_z, 0.0f, 0.0f, 1.0f);
 //
-//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
-//	glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
-//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
-//	glTexSubImage2D(GL_TEXTURE_TYPE,
-//					0, 0, 0, width/2, height/2, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
-//	glEnable(GL_TEXTURE_TYPE);
+//    glScalef(scale * 1,scale * 1, scale * .5);
+//	glDrawArrays(GL_POINTS, 0, IMAGE_XxY * 3);
+//	glPopMatrix();
+//	glDisableClientState(GL_VERTEX_ARRAY);
+//	glDisableClientState(GL_COLOR_ARRAY);
 //
-//	// draw textured quad
-//	glBegin(GL_QUADS);
-//	glTexCoord2f(0    , height/2);  glVertex2f(0, 1);
-//	glTexCoord2f(width/2, height/2);  glVertex2f(1, 1);
-//	glTexCoord2f(width/2, 0     );  glVertex2f(1, 2);
-//	glTexCoord2f(0    , 0     );  glVertex2f(0, 2);
-//	glEnd();
-//	glDisable(GL_TEXTURE_TYPE);
-//	glPointSize(3);
-
-	glColor3f(1,0,0);
-
-	float light[] = {0,0,1};
-	glLightfv(GL_LIGHT0, GL_POSITION, light);
-//	int *tmp = new int[IMAGE_XxY * 3];
-//	for (int i=0; i<IMAGE_XxY*3; i+=3){
-//		tmp[i] = i;
-//		tmp[i + 1] = i % 32;
-//		tmp[i + 2] = i + tmp[i + 1];
-//	}
-	glBindBufferARB(GL_ARRAY_BUFFER, hist_vbo);         // for vertex coordinates
-	glEnableClientState(GL_VERTEX_ARRAY);                 // activate vertex coords array
-	glVertexPointer(3, GL_INT, 0, 0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-	glPushMatrix();
-	glTranslatef(64,64, -128);
-    glRotatef(rot_x, 1.0f, 0.0f, 0.0f);
-    glRotatef(rot_y, 0.0f, 1.0f, 0.0f);
-    glRotatef(rot_z, 0.0f, 0.0f, 1.0f);
-
-    glScalef(scale * 1,scale * 1, scale * .5);
-	glDrawArrays(GL_POINTS, 0, IMAGE_XxY * 3);
-	glPopMatrix();
-	glDisableClientState(GL_VERTEX_ARRAY);
-	glDisableClientState(GL_COLOR_ARRAY);
-
-	// bind with 0, so, switch back to normal pointer operation
-	glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+//	// bind with 0, so, switch back to normal pointer operation
+//	glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 }
 
 void DensitySOMWidget::keyPressEvent( QKeyEvent *e )
@@ -405,4 +358,60 @@ void DensitySOMWidget::unMap()
 		cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
        	cutilSafeCall(cudaGLUnmapBufferObject(hist_vbo) );
 	}
+}
+
+GLuint DensitySOMWidget::createListObject()
+{
+
+	GLuint list = glGenLists(1);
+	glNewList(list, GL_COMPILE);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+	glBindTexture  (GL_TEXTURE_TYPE, displayRegTex);
+//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+//
+	glTexSubImage2D(GL_TEXTURE_TYPE,0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+	glEnable(GL_TEXTURE_TYPE);
+	glDisable(GL_DEPTH_TEST);
+	glBegin(GL_QUADS);
+	glTexCoord2f(0    , height/2);  glVertex2f(0, 0);
+	glTexCoord2f(width/2, height/2);  glVertex2f(1, 0);
+	glTexCoord2f(width/2, 0     );  glVertex2f(1, 1);
+	glTexCoord2f(0    , 0     );  glVertex2f(0, 1);
+	glEnd();
+	glDisable(GL_TEXTURE_TYPE);
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, split_pbo);
+//	glBindTexture  (GL_TEXTURE_TYPE, displaySplitTex);
+//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+//	glTexSubImage2D(GL_TEXTURE_TYPE,
+//					0, 0, 0, width/2, height/2, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+//	glEnable(GL_TEXTURE_TYPE);
+//	glBegin(GL_QUADS);
+//	glTexCoord2f(0    , height/2);  glVertex2f(1, 0);
+//	glTexCoord2f(width/2, height/2);  glVertex2f(2, 0);
+//	glTexCoord2f(width/2, 0     );  glVertex2f(2, 1);
+//	glTexCoord2f(0    , 0     );  glVertex2f(1, 1);
+//	glEnd();
+//	glDisable(GL_TEXTURE_TYPE);
+//
+//
+//	glBindBuffer(GL_PIXEL_UNPACK_BUFFER_ARB, log_pbo);
+//	glBindTexture  (GL_TEXTURE_TYPE, display_log_tex);
+//	glPixelStorei  (GL_UNPACK_ALIGNMENT, 1);
+//	glTexSubImage2D(GL_TEXTURE_TYPE,
+//					0, 0, 0, width/2, height/2, GL_LUMINANCE, GL_UNSIGNED_INT, 0);
+//	glEnable(GL_TEXTURE_TYPE);
+//	glBegin(GL_QUADS);
+//	glTexCoord2f(0    , height/2);  glVertex2f(0, 1);
+//	glTexCoord2f(width/2, height/2);  glVertex2f(1, 1);
+//	glTexCoord2f(width/2, 0     );  glVertex2f(1, 2);
+//	glTexCoord2f(0    , 0     );  glVertex2f(0, 2);
+//	glEnd();
+//	glDisable(GL_TEXTURE_TYPE);
+
+    glEndList();
+
+    return list;
 }

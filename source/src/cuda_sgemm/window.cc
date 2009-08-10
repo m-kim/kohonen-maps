@@ -43,7 +43,7 @@
 
 #include <QtOpenGL/QGLWidget>
 #include "DensitySOMWidget.h"
-
+#include "HistSOMWidget.h"
 #include "window.h"
 
 Window::Window(QtSOMWidget *widget)
@@ -72,8 +72,8 @@ Window::Window(QtSOMWidget *widget)
 
     mainLayout->addWidget(glWidgets[0][0], 0, 0);
 
-//    glWidgets[1][0] = new DensitySOMWidget(0,0, glWidgets[0][0]);
-//
+//    glWidgets[1][0] = new HistSOMWidget(0,0,glWidgets[0][0]);
+
 //    mainLayout->addWidget(glWidgets[1][0], 1,0);
     setLayout(mainLayout);
     currentGlWidget = glWidgets[0][0];

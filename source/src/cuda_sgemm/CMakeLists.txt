@@ -33,6 +33,7 @@ CUDA_ADD_EXECUTABLE(cuda_som
 	window.cc
 	DensitySOMWidget.cc
 	QtSOMWidget.cc
+	HistSOMWidget.cc
 	SOM.cc
 	main.cc
   cuda.cu
