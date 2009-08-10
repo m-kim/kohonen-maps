@@ -25,7 +25,10 @@
 #include "SOM.h"
 #include "DensitySOMWidget.h"
 #include <qapplication.h>
+#include "window.h"
+
 DensitySOMWidget *dense;
+
 
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
@@ -394,6 +397,8 @@ int main( int argc, char **argv )
 	dense->som.runCuda();
 
 	dense->unMap();
+	Window window(dense);
+	window.show();
 
 //	reshape(width,height);
 //	if (som.RUN_DISPLAY)

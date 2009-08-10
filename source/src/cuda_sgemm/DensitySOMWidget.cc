@@ -16,7 +16,7 @@
 #define GL_TEXTURE_TYPE GL_TEXTURE_RECTANGLE_ARB
 
 
-DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent, char *name):QtSOMWidget(0, parent, name)
+DensitySOMWidget::DensitySOMWidget( int timerInterval, QWidget *parent,QGLWidget *shareWidget):QtSOMWidget(0, parent, shareWidget)
 {
 	pbo = 0;
 	log_pbo = 0;
@@ -238,7 +238,7 @@ void DensitySOMWidget::initializeGL()
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_split_output, split_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_log_output, log_pbo) );
 	cutilSafeCall( cudaGLMapBufferObject((void**)&d_hist_output, hist_vbo) );
-	//createShader();
+	createShader();
 }
 
 void DensitySOMWidget::resizeGL( int x, int y )
@@ -334,17 +334,6 @@ void DensitySOMWidget::paintGL()
 	glVertexPointer(3, GL_INT, 0, 0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	glBindBuffer(GL_ARRAY_BUFFER, pbo);
-	unsigned char *tmp1 = new unsigned char[IMAGE_XxY * 3];
-//	for (int i=0; i<IMAGE_XxY*3; i+=3){
-//		tmp1[i] = 0;
-//		tmp1[i + 1] = 255;
-//		tmp1[i + 2] = 0;
-//	}
-	glEnableClientState(GL_COLOR_ARRAY);
-	glColorPointer(3, GL_UNSIGNED_BYTE, 0, tmp1);
-	glBindBuffer(GL_COLOR_ARRAY, 0);
-
 	glPushMatrix();
 	glTranslatef(64,64, -128);
     glRotatef(rot_x, 1.0f, 0.0f, 0.0f);
@@ -357,7 +346,6 @@ void DensitySOMWidget::paintGL()
 	glDisableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_COLOR_ARRAY);
 
-	delete tmp1;
 	// bind with 0, so, switch back to normal pointer operation
 	glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 }
@@ -407,4 +395,14 @@ void DensitySOMWidget::mouseMoveEvent(QMouseEvent *e)
 
     anchor = e->pos();
    	QGLWidget::updateGL();
+}
+
+void DensitySOMWidget::unMap()
+{
+	if (som.RUN_DISPLAY){
+		cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
+		cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
+		cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
+       	cutilSafeCall(cudaGLUnmapBufferObject(hist_vbo) );
+	}
 }

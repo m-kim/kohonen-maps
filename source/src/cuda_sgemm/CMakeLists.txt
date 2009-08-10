@@ -4,6 +4,7 @@ INCLUDE(${QT_USE_FILE})
 QT_WRAP_CPP(cuda_som
 MOC_FILES 
 QtSOMWidget.h
+window.h
 )
 message("ARGH ${MOC_FILES} ")
 # The cuda_include_directories adds paths to only cuda compilation.
@@ -29,6 +30,7 @@ LINK_DIRECTORIES(
 ENDIF()
 
 CUDA_ADD_EXECUTABLE(cuda_som
+	window.cc
 	DensitySOMWidget.cc
 	QtSOMWidget.cc
 	SOM.cc

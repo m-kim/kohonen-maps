@@ -8,21 +8,13 @@
 class DensitySOMWidget : public QtSOMWidget
 {
 public:
-	DensitySOMWidget( int timerInterval=0, QWidget *parent=0, char *name=0 );
+	DensitySOMWidget( int timerInterval=0, QWidget *parent=0, QGLWidget *shareWidget = 0 );
 	SOM som;
 	void setupCuda(ORDERED_MATRIX<MATRIX_TYPE, HOST, COLUMN_MAJOR> &ww,
 			ORDERED_MATRIX<MATRIX_TYPE, HOST, ROW_MAJOR> &data,
 			unsigned int *labels);
 
-	void unMap()
-	{
-		if (som.RUN_DISPLAY){
-			cutilSafeCall( cudaGLUnmapBufferObject(split_pbo) );
-			cutilSafeCall( cudaGLUnmapBufferObject(log_pbo) );
-			cutilSafeCall( cudaGLUnmapBufferObject(pbo) );
-	       	cutilSafeCall(cudaGLUnmapBufferObject(hist_vbo) );
-		}
-	}
+	void unMap();
 	uint *d_split_output;
 	uchar4 *d_regular_output;
 	unsigned int *d_log_output;
