@@ -15,6 +15,7 @@ public:
 	QtSOMWidget( int timerInterval=0, QWidget *parent=0, QGLWidget *shareWidget = 0);
 	QSize minimumSizeHint() const;
 	QSize sizeHint() const;
+	virtual void keyPressEvent( QKeyEvent *e );
 protected:
 	//Got this from http://www.lighthouse3d.com/opengl/glsl/index.php?oglinfo
 	// it prints out shader info (debugging!)
@@ -27,7 +28,6 @@ protected:
 	virtual void initializeGL() = 0;
 	virtual void resizeGL( int width, int height ) = 0;
 	virtual void paintGL() = 0;
-	virtual void keyPressEvent( QKeyEvent *e );
 	virtual void timeOut();
 protected slots:
 	virtual void timeOutSlot();

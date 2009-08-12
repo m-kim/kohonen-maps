@@ -398,8 +398,19 @@ int main( int argc, char **argv )
 
 	widget->unMap();
 	Window window(widget);
-	window.show();
 
+	if (widget->som.RUN_DISPLAY){
+		window.show();
+		return a.exec();
+	}
+	else{
+		while (widget->som.counter < widget->som.host_T){
+			widget->som.counter++;
+			widget->som.updateWeights();
+			widget->som.runCuda();
+			widget->som.updateConvergence();
+		}
+	}
 //	reshape(width,height);
 //	if (som.RUN_DISPLAY)
 //		glutMainLoop();
@@ -416,5 +427,4 @@ int main( int argc, char **argv )
 //	}
 
 	delete dm, b1,b2,labels;
-	return a.exec();
 };

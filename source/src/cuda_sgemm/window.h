@@ -52,7 +52,7 @@ class Window : public QWidget
 
 public:
     Window(QtSOMWidget *widget);
-
+    void keyPressEvent( QKeyEvent *e );
 //private slots:
 //    void setCurrentGlWidget();
 //    void rotateOneStep();

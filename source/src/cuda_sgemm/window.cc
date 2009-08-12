@@ -84,6 +84,16 @@ Window::Window(QtSOMWidget *widget)
 
     setWindowTitle(tr("Textures"));
 }
+void Window::keyPressEvent( QKeyEvent *e )
+{
+	switch(e->key()){
+    case Qt::Key_Escape:
+    	close();
+    	break;
+    default:
+    	currentGlWidget->keyPressEvent(e);
+	}
+}
 
 //void Window::setCurrentGlWidget()
 //{
